@@ -1,0 +1,562 @@
+---
+title: "Cluster Analysis"
+subtitle: "WDI Indicators"
+author: "Yasmin Sarcheshmehpour 94109827"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+<div align="center">
+<img  src="images/best_hans_talks_1200x627.jpg"  align = 'center'>
+</div>
+
+> <p dir="RTL"> 
+با توجه به داده بانک جهانی به سوالات زیر پاسخ دهید. برای استفاده از داده از سه فایل زیر استفاده نمایید.
+داده نام کشورها: WDICountry
+داده نام سری های زمانی: WDISeries
+داده کل: WDIData
+در صورتی که داده را در اختیار ندارید می توانید از بسته WDI استفاده نموده و داده های مورد نظر را استخراج نمایید.
+</p>
+
+
+```{r, include=FALSE}
+library(WDI)
+library(magrittr)
+library(dplyr)
+library(readr)
+library(magrittr)
+library(highcharter)
+library(tidyverse)
+library(reshape)
+
+wdi_data = read.csv('WDI_csv/WDIData.csv')
+wdi_country = read.csv('WDI_csv/WDICountry.csv')
+wdi_footnote = read.csv('WDI_csv/WDIFootNote.csv')
+wdi_series = read.csv('WDI_csv/WDISeries.csv')
+wdi_series_time = read.csv('WDI_csv/WDISeries-Time.csv')
+wdi_country_series = read.csv('WDI_csv/WDICountry-Series.csv')
+
+```
+
+
+***
+
+<p dir="RTL">
+۱. ده کشور فقیر دنیا را بیابید. نمودار درآمد روزانه آنها را رسم کنید. چند درصد از اعضای این کشورها زیر خط فقر هستند؟ متوسط عمر در این کشورها چقدر است؟
+</p>
+
+```{r}
+gdp_code = 'NY.GDP.PCAP.PP.KD'
+survey_income_code = 'SI.SPR.PCAP'
+poverty_line_code = 'SI.POV.NAHC'
+life_expectancy_code = 'SP.DYN.LE00.IN'
+
+wdi_data %>% filter(Indicator.Code==gdp_code) %>% mutate(gdp = X2011) %>% select(Country.Name, gdp)  %>% 
+  arrange(gdp) -> gdp_data
+poor_countries = head(gdp_data, 10)
+
+poor_countries %>% 
+  hchart("column",hcaes(x = Country.Name, y = gdp))
+
+
+wdi_data %>% filter(Country.Name %in% poor_countries$Country.Name) %>% filter(Indicator.Code==survey_income_code) %>%
+  mutate(survey_income = X2011) %>% select(Country.Name, survey_income)  %>% 
+  arrange(survey_income) -> poor_poverty_data
+poor_poverty_data
+
+
+
+wdi_data %>% filter(Indicator.Code==survey_income_code) %>%
+  mutate(survey_income = X2011) %>% select(Country.Name, survey_income)  %>% 
+  arrange(survey_income) -> poverty_data
+poverty_data %>% head(10)
+
+
+
+
+
+wdi_data %>% filter(Country.Name %in% poor_countries$Country.Name) %>% filter(Indicator.Code==poverty_line_code) %>%
+  mutate(poverty_line = X2011) %>% select(Country.Name, poverty_line)  %>% 
+  arrange(-poverty_line) -> poor_poverty_line_data
+poor_poverty_line_data
+
+
+
+wdi_data %>% filter(Indicator.Code==poverty_line_code) %>%
+  mutate(poverty_line = X2011) %>% select(Country.Name, poverty_line)  %>% 
+  arrange(-poverty_line) -> poverty_line_data
+poverty_line_data %>% head(10)
+
+
+
+
+
+wdi_data %>% filter(Country.Name %in% poor_countries$Country.Name) %>% 
+  filter(Indicator.Code==life_expectancy_code) %>%
+  mutate(expectancy = X2011) %>% select(Country.Name, expectancy) %>% 
+  arrange(expectancy) -> poor_expectancy_data
+poor_expectancy_data
+
+
+```
+
+<p dir="RTL">
+به دلیل زیاد بودن تعداد 
+na
+ها برای هر کدام از موارد خواستهشده هم کشورهای فقیر و هم همهی کشورها را در نظر گرفتم
+</p>
+
+***
+
+<p dir="RTL">
+۲. تراژدی روآندا: بر اساس داده های امید به زندگی ابتدا نمودار سالانه نمودار جعبه ایی امید به زندگی کشورها را رسم نمایید(در یک نمودار!). سپس سری زمانی امید به زندگی روآندا را به آن اضافه کنید. چه می بینید؟ چند میلیون نفر کشته شدند؟
+</p>
+
+```{r}
+
+wdi_data %>% filter(Indicator.Code==life_expectancy_code) -> world_expectancy_data
+world_expectancy_data = world_expectancy_data[, -c(1, 2, 3, 4, 62, 63)]
+boxplot(world_expectancy_data, use.cols=TRUE)
+
+
+
+wdi_data %>% filter(Indicator.Code == life_expectancy_code) %>% filter(Country.Name == "Rwanda") -> roanda_data
+roanda_data = melt(roanda_data[5:61], measure.vars = colnames(roanda_data[5:61]))
+world_expectancy_data <- melt(world_expectancy_data, measure.vars=colnames(world_expectancy_data))
+
+ggplot(data = world_expectancy_data,aes(x=variable,y=value)) + 
+  geom_boxplot() +
+  geom_point(data = roanda_data, aes(x = variable, y = value, colour = "pink"))
+
+
+```
+
+
+<p dir="RTL">
+مشاهده میشود که از سال ۱۹۸۴ تا سال ۱۹۹۴ کاهش زیادی در متوسط عمر در رواندا به وجود آمده است.
+با کمک از دیتای موجود در اینترنت میبینیم که از ادر ۱میلیون نفر در رواندا کشته شده اند.
+</p>
+
+
+
+
+***
+
+<p dir="RTL">
+۳. نمودار امید به زندگی و هزینه های بهداشتی را رسم کنید. چه نتیجه ایی می گیرید؟
+</p>
+
+
+```{r}
+
+wdi_data %>% filter(Indicator.Code==life_expectancy_code) %>%
+  mutate(expectancy = X2011) %>% select(Country.Code, expectancy) -> expectancy_data
+
+
+health_expenditure_code = 'SH.XPD.CHEX.PP.CD'
+wdi_data %>% filter(Indicator.Code==health_expenditure_code) %>%
+  mutate(health_expenditure = X2011/100) %>% select(Country.Code, health_expenditure) -> health_expenditure_data
+
+concat_data = merge(expectancy_data, health_expenditure_data) %>% na.omit()
+concat_data$ID <- seq.int(nrow(concat_data))
+
+
+ggplot(concat_data, aes(ID)) +
+  geom_line(aes(y=expectancy), colour="red") + 
+  geom_line(aes(y=health_expenditure), colour="green")
+
+
+ggplot(concat_data %>% head(20), aes(ID)) +
+  geom_line(aes(y=expectancy), colour="blue") + 
+  geom_line(aes(y=health_expenditure), colour="pink")
+
+
+
+series = list(
+  list(
+    name = 'life expectancy',
+    color = 'red',
+    data = expectancy_data$expectancy
+  )
+)
+highchart() %>%
+  hc_add_series_list(series)
+
+
+series = list(
+  list(
+    name = 'health_expenditure!',
+    color = 'green',
+    data = health_expenditure_data$health_expenditure
+  )
+)
+highchart() %>%
+  hc_add_series_list(series)
+
+```
+
+
+
+<p dir="RTL">
+چون دادههای امید به زندگی و هزینههای بهداشتی با هم قابل مقایسه نبودند،دادهها را نرمال کردم.
+همچنین چون نمودار همهی کشور ها واضح نبود ۲۰ کشور رندم را انتخاب کردم.
+با توجه به نمودار این دادهها با هم همبستگی دارند.
+</p>
+
+
+
+
+***
+
+<p dir="RTL">
+۴. آیا قدرت خرید خانواده های ایرانی در ۵۰ سال اخیر افزایش یافته است؟ برای این کار از داده های اقتصادی خانوار استفاده کنید.
+</p>
+
+
+
+```{r}
+ppp = 'NY.GDP.MKTP.PP.KD'
+wdi_data %>% filter(Indicator.Code==ppp & Country.Name=='Iran, Islamic Rep.') -> iran_ppp
+iran_ppp = iran_ppp[sapply(iran_ppp, function(iran_ppp) !any(is.na(iran_ppp)))] 
+
+
+iran_ppp_data <- data.frame(year=numeric(),
+                         ppp=numeric(),
+                         stringsAsFactors=FALSE)
+
+for (year in colnames(iran_ppp[,5:31])){
+  y = str_sub(year, 2, 6)
+  de<-data.frame(y,iran_ppp[,year])
+  names(de)<-c("year","ppp")
+  iran_ppp_data = rbind(iran_ppp_data, de)
+}
+
+iran_ppp_data %>% 
+  hchart("column",hcaes(x = year, y = ppp))
+
+```
+
+<p dir="RTL">
+با توجه به نمودار قدرت خرید خانوارهای ایرانی رو به افزایش است.
+</p>
+
+
+***
+
+<p dir="RTL">
+۵. رشد اقتصادی ایران را با کشورهای دیگر در طول ۲۰ سال گذشته بر حسب بیست شاخص های اقتصادی مهم مانند تولید ناخالص ملی، تورم و … ارزیابی کنید! (برای هر شاخص از تصویرسازی استفاده کنید.)
+</p>
+
+
+```{r, warning=FALSE}
+economic_series = wdi_series[30:52, 1]
+
+wdi_data %>% filter(Indicator.Code %in% economic_series) -> ecconomic_data
+ecconomic_data = ecconomic_data[, c(1, 4, 41:61)]
+ecconomic_data[is.na(ecconomic_data)] <- 0
+
+years = colnames(ecconomic_data[, -c(1, 2)])
+
+
+for (indicator in economic_series){
+  ecconomic_data %>% filter(Indicator.Code==indicator) -> indicator_data_eco
+  
+  draw_data <- data.frame(year=numeric(),
+                         iran=numeric(),
+                         world=numeric(),
+                         stringsAsFactors=FALSE)
+  for(year in years){
+    y = str_sub(year, 2, 6)
+    indicator_data_eco %>% filter(Country.Name=='Iran, Islamic Rep.') %>% select(year) -> iran_year
+    ir<-data.frame(y,iran_year[,year], mean(indicator_data_eco[,year]))
+    names(ir)<-c("year", "iran", "world")
+    draw_data = rbind(draw_data, ir)
+    
+  }
+  indicator_name = wdi_series %>% filter(Series.Code==indicator) %>% select(Indicator.Name)
+  print(ggplot(draw_data, aes(x=year, group=1)) +
+        geom_line(aes(y=iran), colour="blue") + 
+        geom_line(aes(y=world), colour="pink") + 
+        ylab(label="iran(blue) vs world mean(pink)") + 
+        xlab("year") +
+        ggtitle(indicator_name$Indicator.Name))
+}
+
+```
+
+***
+
+<p dir="RTL">
+۶. در قسمت قبل با استفاده از روش خوشه بندی k-means داده ها را به سه دسته تقسیم کنید. ایران در کدام دسته می گنجد؟ (پیش از خوشه بندی طبیعتا داده را باید پاکسازی و استاندارد سازی نمایید.)
+</p>
+
+
+```{r, warning=FALSE}
+mean_data = ecconomic_data
+mean_data$mean_val = rowSums(mean_data[, -c(1, 2)]) / (22 - rowSums(mean_data==0))
+
+mean_data %>% select(Indicator.Code, Country.Name, mean_val) -> mean_data
+
+indicator_data_eco = as.data.frame(unique(mean_data[,'Country.Name']))
+colnames(indicator_data_eco)= c('Country.Name')
+
+for (indicator in economic_series){
+  mean_data %>% filter(Indicator.Code==indicator) %>% select(mean_val, Country.Name) -> data
+  indicator_data_eco = merge(indicator_data_eco, data, by='Country.Name')
+    
+}
+colnames(indicator_data_eco) = c('Country.Name', c(1:23))
+
+
+clusters = kmeans(indicator_data_eco[, -c(1)], 3)
+country_clusters = data.frame(indicator_data_eco$Country.Name, clusters$cluster)
+country_clusters %>% filter(indicator_data_eco.Country.Name=='Iran, Islamic Rep.')
+
+```
+
+
+***
+
+<p dir="RTL">
+۷. به وسیله تحلیل مولفه اصلی بعد داده رو به دو کاهش دهید سپس خوشه های به دست آمده در قسمت قبل را بر روی آن نمایش دهید. آیا عملکرد روش خوشه بندی شما مطلوب بوده است؟
+</p>
+
+```{r}
+pca <- prcomp(indicator_data_eco[, -c(1)],
+                 center = TRUE,
+                 scale. = TRUE) 
+
+comp <- data.frame(pca$x[,1:2])
+plot(comp, col=clusters$clust, pch=20)
+
+```
+
+
+***
+
+<p dir="RTL">
+۸. با استفاده از داده روشی برای پیش بینی رشد اقتصادی ایران در سال آینده ارائه دهید.
+</p>
+
+```{r}
+```
+
+***
+
+<p dir="RTL"> 
+۹. سوالهای ۵ تا ۷ را ابتدا برای ۲۰ شاخص سلامت سپس بر حسب ۲۰ شاخص آموزشی تکرار کنید.
+</p>
+
+
+```{r, warning=FALSE}
+#For Education
+education_series = wdi_series[930:952, 1]
+
+wdi_data %>% filter(Indicator.Code %in% education_series) -> education_data
+education_data = education_data[, c(1, 4, 41:61)]
+education_data[is.na(education_data)] <- 0
+
+years = colnames(education_data[, -c(1, 2)])
+
+
+for (indicator in education_series){
+  education_data %>% filter(Indicator.Code==indicator) -> indicator_data_education
+  
+  draw_data <- data.frame(year=numeric(),
+                         iran=numeric(),
+                         world=numeric(),
+                         stringsAsFactors=FALSE)
+  for(year in years){
+    y = str_sub(year, 2, 6)
+    indicator_data_education %>% filter(Country.Name=='Iran, Islamic Rep.') %>% select(year) -> iran_year
+    ir<-data.frame(y,iran_year[,year], mean(indicator_data_education[,year]))
+    names(ir)<-c("year", "iran", "world")
+    draw_data = rbind(draw_data, ir)
+    
+  }
+  indicator_name = wdi_series %>% filter(Series.Code==indicator) %>% select(Indicator.Name)
+  print(ggplot(draw_data, aes(x=year, group=1)) +
+        geom_line(aes(y=iran), colour="blue") + 
+        geom_line(aes(y=world), colour="pink") + 
+        ylab(label="iran(blue) vs world mean(pink)") + 
+        xlab("year") +
+        ggtitle(indicator_name$Indicator.Name))
+}
+
+mean_data = education_data
+mean_data$mean_val = rowSums(mean_data[, -c(1, 2)]) / (22 - rowSums(mean_data==0))
+
+mean_data %>% select(Indicator.Code, Country.Name, mean_val) -> mean_data
+
+indicator_data_education = as.data.frame(unique(mean_data[,'Country.Name']))
+colnames(indicator_data_education)= c('Country.Name')
+
+for (indicator in education_series){
+  mean_data %>% filter(Indicator.Code==indicator) %>% select(mean_val, Country.Name) -> data
+  indicator_data_education = merge(indicator_data_education, data, by='Country.Name')
+    
+}
+colnames(indicator_data_education) = c('Country.Name', c(101:123))
+
+
+clusters = kmeans(indicator_data_education[, -c(1)], 3)
+country_clusters = data.frame(indicator_data_education$Country.Name, clusters$cluster)
+country_clusters %>% filter(indicator_data_education.Country.Name=='Iran, Islamic Rep.')
+
+pca <- prcomp(indicator_data_education[, -c(1)],
+                 center = TRUE,
+                 scale. = TRUE) 
+
+comp <- data.frame(pca$x[,1:2])
+plot(comp, col=clusters$clust, pch=20)
+
+
+
+#For health
+health_series = wdi_series[1100:1122, 1]
+
+wdi_data %>% filter(Indicator.Code %in% health_series) -> health_data
+health_data = health_data[, c(1, 4, 41:61)]
+health_data[is.na(health_data)] <- 0
+
+years = colnames(health_data[, -c(1, 2)])
+
+
+for (indicator in health_series){
+  health_data %>% filter(Indicator.Code==indicator) -> indicator_data_health
+  
+  draw_data <- data.frame(year=numeric(),
+                         iran=numeric(),
+                         world=numeric(),
+                         stringsAsFactors=FALSE)
+  for(year in years){
+    y = str_sub(year, 2, 6)
+    indicator_data_health %>% filter(Country.Name=='Iran, Islamic Rep.') %>% select(year) -> iran_year
+    ir<-data.frame(y,iran_year[,year], mean(indicator_data_health[,year]))
+    names(ir)<-c("year", "iran", "world")
+    draw_data = rbind(draw_data, ir)
+    
+  }
+  indicator_name = wdi_series %>% filter(Series.Code==indicator) %>% select(Indicator.Name)
+  print(ggplot(draw_data, aes(x=year, group=1)) +
+        geom_line(aes(y=iran), colour="blue") + 
+        geom_line(aes(y=world), colour="pink") + 
+        ylab(label="iran(blue) vs world mean(pink)") + 
+        xlab("year") +
+        ggtitle(indicator_name$Indicator.Name))
+}
+
+mean_data = health_data
+mean_data$mean_val = rowSums(mean_data[, -c(1, 2)]) / (22 - rowSums(mean_data==0))
+
+mean_data %>% select(Indicator.Code, Country.Name, mean_val) -> mean_data
+
+indicator_data_health = as.data.frame(unique(mean_data[,'Country.Name']))
+colnames(indicator_data_health)= c('Country.Name')
+
+for (indicator in health_series){
+  mean_data %>% filter(Indicator.Code==indicator) %>% select(mean_val, Country.Name) -> data
+  indicator_data_health = merge(indicator_data_health, data, by='Country.Name')
+    
+}
+colnames(indicator_data_health) = c('Country.Name', c(201:223))
+
+
+clusters = kmeans(indicator_data_health[, -c(1)], 3)
+country_clusters = data.frame(indicator_data_health$Country.Name, clusters$cluster)
+country_clusters %>% filter(indicator_data_health.Country.Name=='Iran, Islamic Rep.')
+
+
+pca <- prcomp(indicator_data_health[, -c(1)],
+                 center = TRUE,
+                 scale. = TRUE) 
+
+comp <- data.frame(pca$x[,1:2])
+plot(comp, col=clusters$clust, pch=20)
+
+
+
+```
+
+***
+
+<p dir="RTL"> 
+۱۰. کشورهای دنیا را بر حسب ۶۰ شاخص اقتصادی، سلامت و آموزش با روش سلسله مراتبی خوشه بندی کرده و دندروگرام آن را رسم نمایید. اگر داده ها بر سه دسته تقسیم شوند ایران در کدام دسته می گنجد؟
+</p>
+
+```{r}
+combine_data = merge(indicator_data_eco, indicator_data_education, by='Country.Name')
+combine_data = merge(combine_data, indicator_data_health, by='Country.Name')
+
+
+dist = stats::dist(combine_data[, -c(1)], method = 'euclidean')
+clusters = hclust(dist, method = 'complete')
+plot(clusters)
+cutree(clusters,k=3)
+
+```
+
+
+***
+
+<p dir="RTL"> 
+۱۱. سه یافته جالب از داده ها استخراج کنید.
+</p>
+
+
+
+<p dir="RTL"> 
+مقایسه gdp ایران و امریکا
+</p>
+
+```{r}
+gdp_code = 'NY.GDP.PCAP.PP.KD'
+wdi_data %>% filter(Indicator.Code==gdp_code & (Country.Name=='Iran, Islamic Rep.' | Country.Name=='United States')) -> gdp_data
+gdp_data = gdp_data[, c(1, 2, 35:61)]
+gdp_data = melt(gdp_data, measure.vars = colnames(gdp_data[, -c(1, 2)]))
+ggplot(gdp_data, aes(x=variable, y=value, group=Country.Code)) +
+        geom_line()
+
+```
+
+
+
+
+<p dir="RTL"> 
+مقایسه درامد سرانه ایران و امریکا
+</p>
+
+```{r}
+survey_income_code = 'SP.DYN.LE00.IN'
+wdi_data %>% filter(Indicator.Code==survey_income_code & (Country.Name=='Iran, Islamic Rep.' | Country.Name=='United States')) -> survey_income_data
+survey_income_data = survey_income_data[, c(1, 2, 35:61)]
+survey_income_data = melt(survey_income_data, measure.vars = colnames(survey_income_data[, -c(1, 2)]))
+ggplot(survey_income_data, aes(x=variable, y=value, group=Country.Code)) +
+        geom_line()
+
+```
+
+
+
+<p dir="RTL"> 
+مقایسه امید به زندگی ایران و رواندا
+</p>
+
+
+```{r}
+wdi_data %>% filter(Indicator.Code==life_expectancy_code) %>% filter(Country.Name == "Iran, Islamic Rep.") -> world_expectancy_data
+world_expectancy_data = world_expectancy_data[, -c(1, 2, 3, 4, 62, 63)]
+
+wdi_data %>% filter(Indicator.Code == life_expectancy_code) %>% filter(Country.Name == "Rwanda") -> roanda_data
+roanda_data = melt(roanda_data[5:61], measure.vars = colnames(roanda_data[5:61]))
+world_expectancy_data <- melt(world_expectancy_data, measure.vars=colnames(world_expectancy_data))
+
+ggplot(data = world_expectancy_data,aes(x=variable,y=value)) + 
+  geom_boxplot() +
+  geom_point(data = roanda_data, aes(x = variable, y = value, colour = "purple"))
+
+
+```

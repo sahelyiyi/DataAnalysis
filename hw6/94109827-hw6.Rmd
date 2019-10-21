@@ -1,0 +1,320 @@
+---
+title: "Sixth Week: Linear Models"
+subtitle: "House price prediction"
+author: "Yasmin Sarcheshmehpour\n94109827"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+> <p dir="RTL"> 
+با توجه به داده های قیمت منازل
+لطفا با سوالات زیر پاسخ دهید.
+</p>
+
+***
+
+
+```{r}
+library(readr)
+library(magrittr)
+
+house = read.csv("house/train.csv")
+
+```
+
+<p dir="RTL">
+۱. ماتریس همبستگی متغیرهای مختلف را به دست آورده و سپس رسم نمایید.
+اعداد به دست آمده را با آزمون فرض معناداری همبستگی بسنجید و سپس ده متغیری که همبستگی بالاتری با قیمت دارند را مشخص نمایید.
+</p>
+
+```{r}
+library("dplyr")
+library(corrplot)
+house %>% select_if(is.numeric) -> cor_data
+cor_data %>% cor() %>% round(2) -> cor_mat
+cor_mat[, c('SalePrice')] -> price_data
+sort(price_data[!is.na(price_data)])
+names(head(sort(price_data[!is.na(price_data)], decreasing = TRUE), 11)) -> top_10
+subset(house, select=top_10) -> selected_data
+selected_data %>% cor() %>% round(2) -> cor_mat
+corrplot(cor_mat, type="upper", order="hclust", sig.level = 0.01, insig ="blank")
+cor.test(selected_data$SalePrice, selected_data$OverallQual)
+cor.test(selected_data$SalePrice, selected_data$GrLivArea)
+cor.test(selected_data$SalePrice, selected_data$GarageCars)
+cor.test(selected_data$SalePrice, selected_data$GarageArea)
+cor.test(selected_data$SalePrice, selected_data$TotalBsmtSF)
+cor.test(selected_data$SalePrice, selected_data$X1stFlrSF)
+cor.test(selected_data$SalePrice, selected_data$FullBath)
+cor.test(selected_data$SalePrice, selected_data$TotRmsAbvGrd)
+cor.test(selected_data$SalePrice, selected_data$YearBuilt)
+cor.test(selected_data$SalePrice, selected_data$YearRemodAdd)
+```
+
+
+<p dir="RTL">
+فرض صفر: کورلیشن صفر است
+
+در همه ی موارد چون پی-ولیو عدد بسیار کوچکی است فرض صفر رد میشود
+</p>
+
+
+***
+
+<p dir="RTL">
+۲. در یک تصویر نمودار پراکنش دو به دو ده متغیر بدست آمده به همراه قیمت را رسم نمایید و هم خطی بودن متغیرها را بررسی کنید
+</p>
+
+```{r}
+library("car")
+scatterplotMatrix(selected_data)
+
+```
+
+<p dir="RTL">
+مواردی که نقاط سیاه نزدیک به خط قرمز هستند، هم خطی میباشند
+
+مانند
+saleprice & yearbuilt
+</p>
+
+***
+
+<p dir="RTL">
+۳. یک مدل خطی بر اساس ده متغیر برای پیش بینی قیمت برازش دهید. و سپس خلاصه نتایج مدل را به دست آورید.
+</p>
+
+```{r}
+linearMod = lm(SalePrice ~ OverallQual+GrLivArea+GarageCars+GarageArea+TotalBsmtSF+X1stFlrSF+FullBath+TotRmsAbvGrd+YearBuilt+YearRemodAdd, data = selected_data)
+summary(linearMod)
+```
+
+***
+
+<p dir="RTL">
+۴. نمودار قیمت واقعی و قیمت پیش بینی را رسم نمایید و خوب بودن مدل را ارزیابی کنید.
+</p>
+
+```{r}
+library(ggplot2)
+selected_data %>% mutate(pred = predict(linearMod, selected_data, type = "response")) -> selected_data
+#selected_data %>% select(SalePrice, pred)
+ggplot(selected_data, aes(x = SalePrice, y = pred)) + geom_point(color="purple") + geom_smooth(method="lm", formula=y~x, colour = "black")
+```
+
+<p dir="RTL">
+ چون خط رسم شده در نمودار به خط 
+ x=y
+نزدیک است مدل نسبتا خوبی است
+</p>
+
+
+***
+
+<p dir="RTL">
+۵. مقدار
+R-squared
+ مدل را به دست آورید. آیا بر اساس این کمیت مدل به خوبی به داده ها برازش داده شده است؟
+ کمیت
+ F-statistic
+ را در خلاصه مدل تفسیر نمایید.
+</p>
+
+
+```{r}
+summary(linearMod)
+
+```
+
+<p dir="RTL">
+چون 
+r-squared=0.7
+و به ۱ نزدیک است مدل نسبتا خوبی داریم
+
+همچنین برای 
+ f-statistic
+ چون پی-ولیو عدد بسیار کوچکی است نشان میدهد که مدل خوبی داریم
+</p>
+
+
+***
+
+<p dir="RTL">
+۶. بر اساس
+p-value
+ سطح معناداری ضرایب تصمیم بگیرید که چه متغیرهایی در مدل سازی استفاده شود.
+بر اساس متغیرهای جدید دوباره مدل سازی کنید و نتایج رو گزارش دهید.
+</p>
+
+<p dir="RTL">
+آن هایی را باید انتخاب کنیم که پی-ولیو آنها کم است.
+</p>
+
+
+```{r}
+summary(linearMod)
+selected_data %>% select(SalePrice, OverallQual, GrLivArea, GarageCars, TotalBsmtSF, YearBuilt, YearRemodAdd) -> better_data 
+betterMod = lm(SalePrice ~ OverallQual+GrLivArea+GarageCars+TotalBsmtSF+YearBuilt+YearRemodAdd, data = better_data)
+summary(betterMod)
+better_data %>% mutate(pred = predict(betterMod, better_data, type = "response"))  %>% 
+ggplot(aes(x = SalePrice, y = pred)) + geom_point(color="yellow") + geom_smooth(method="lm", formula=y~x, colour = "black")
+```
+
+***
+
+<p dir="RTL">
+۷. مدل خود را بر اساس باقی مانده نقص یابی کنید.
+سه محک 
+normality, independance, Constant Variance
+ را در نقص یابی خود در نظر بگیرید.
+</p>
+
+<p dir="RTL">
+normality
+
+فرض صفر: همانند توزیع نرمال است
+
+چون پی-ولیو عدد بسیار کوچکی است پس فرض صفر رد میشود و در نمودار رسم شده هم مشاهده میشود
+</p>
+
+
+```{r}
+library(fBasics)
+jarqueberaTest(betterMod$resid)
+car::qqPlot(betterMod, id.method="identify",simulate = TRUE, main="Q-Q Plot")
+
+```
+
+<p dir="RTL">
+independance
+
+فرض صفر: فیچر ها مستقل اند
+
+چون پی-ولیو بیشتر از 
+۰.۰۵
+است پس فرض صفر قبول میشود
+</p>
+
+
+```{r}
+library(lmtest) #dwtest
+dwtest(betterMod)
+```
+
+
+
+<p dir="RTL">
+Constant Variance
+
+ چون خط کشیده شده صاف نیست پس واریانس ثابت نمیباشد
+</p>
+
+
+```{r}
+better_data %>% mutate(pred = predict(betterMod, better_data, type = "response"))  %>%
+  mutate(err=(pred-SalePrice)*(pred-SalePrice)) %>% 
+ggplot(aes(x = pred, y = err)) + geom_point(color="yellow") + geom_smooth(method="lm", formula=y~x, colour = "black")
+
+```
+
+
+***
+
+<p dir="RTL">
+۸. داده ها را به پنج قسمت تقسیم کنید. بر اساس چهار قسمت مدل خطی را بسازید و صحت مدل را برای یک قسمت 
+باقی مانده را تست کنید. خطای پیش بینی شما چقدر است؟
+</p>
+
+
+```{r}
+sample_size = floor(0.8*nrow(better_data))
+train_index = sample(seq_len(nrow(better_data)), sample_size, replace = FALSE, prob = NULL)
+train_data = better_data[train_index,]
+test_data = better_data[-train_index,]
+trainMod = lm(SalePrice ~ OverallQual+GrLivArea+GarageCars+TotalBsmtSF+YearBuilt+YearRemodAdd, data = train_data)
+summary(trainMod)
+
+test_data %>% mutate(pred = predict(trainMod, test_data, type = "response"))  %>% 
+ggplot(aes(x = SalePrice, y = pred)) + geom_point(color="pink") + geom_smooth(method="lm", formula=y~x, colour = "black")
+
+```
+
+<p dir="RTL"> 
+خطای پیشبینی شده را آر-اسکوئر در نظر میگیریم که برابر با ۰.۷ میباشد
+</p>
+
+
+
+
+***
+
+<p dir="RTL"> 
+۹. آیا قیمت ربط غیر خطی با یکی از ده متغیر استفاده شده دارد؟
+بر اساس دستاوردهای خود مدل را بهتر نمایید.
+</p>
+
+```{r}
+crPlots(betterMod)
+```
+
+<p dir="RTL"> 
+همانطور که مشاهده میشود قیمت با 
+YearRenodAdd 
+و
+YearBuilt
+رابطهی خطی دارد و با بقیه ندارد
+</p>
+
+
+
+```{r}
+
+last_data = train_data
+last_data %>% mutate(g1 = log(GrLivArea)) -> last_data
+last_data %>% mutate(g2 = log(log(GrLivArea))) -> last_data
+last_data %>% mutate(t1 = log(TotalBsmtSF+0.0001)) -> last_data
+last_data %>% mutate(t2 = log(log(TotalBsmtSF+0.0001)+0.0001)) -> last_data
+lastMod = lm(SalePrice ~ OverallQual+GarageCars+YearRemodAdd+YearBuilt+g1+g2+t1+t2, data = last_data)
+summary(lastMod)
+crPlots(lastMod) 
+```
+
+***
+
+<p dir="RTL"> 
+۱۰. بر اساس مدل نهایی به دست آمده نتایج پیش بینی خود را بر روی
+test.csv
+به دست آورید و در سایت 
+kaggle
+ در مسابقه 
+ House Prices: Advanced Regression Techniques
+بارگذاری نمایید. سپس لینک رتبه و عدد آن را ضمیمه تمرین کنید.
+</p>
+
+
+<p dir="RTL"> 
+score = 0.23112
+
+
+</p>
+
+
+```{r}
+kaggle = read.csv("house/test.csv")
+kaggle %>%
+  mutate(g1 = log(GrLivArea))%>% 
+  mutate(g2 = log(log(GrLivArea))) %>% 
+  mutate(t1 = log(TotalBsmtSF+0.0001)) %>% 
+  mutate(t2 = log(log(TotalBsmtSF+0.0001)+0.0001)) -> kaggle
+kaggle %>% mutate(SalePrice = predict(lastMod, kaggle, type = "response")) %>% select(Id, SalePrice) -> kaggle
+filtered_data = na.omit(kaggle)
+mean_price = mean(filtered_data$SalePrice)
+kaggle[is.na(kaggle)] <- mean_price
+write.csv(kaggle,'pred.csv', row.names = FALSE)
+
+```
+
+![Kaggle score.](score_pic.png)

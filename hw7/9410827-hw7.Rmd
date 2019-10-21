@@ -1,0 +1,283 @@
+---
+title: "Seventh Week: Generalized Linear Models"
+subtitle: "Murder or suicide"
+author: "Yasmin Sarcheshmehpour  94109827"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+> <p dir="RTL"> 
+با توجه به سوالات مرگ و میر در آمریکا به سوالات زیر پاسخ دهید.
+</p>
+
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,comment = "",error = F,message = F,
+                      warning = F,fig.width = 10,fig.height = 6,fig.align = "center")
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(magrittr)
+library(corrplot)
+library(ggplot2)
+library(ggthemes)
+library(h2o)
+source("unbalanced_functions.R")
+
+h2o.init()
+
+death = read.csv("data/murder_suicide.csv")
+death %>%  mutate(suicide=ifelse(MannerOfDeath==2, 1, 0)) -> death
+```
+
+***
+
+<p dir="RTL">
+۱. از میان متغیرهای داده مرگ و میر یک زیرمجموعه ایی بدون حشو در نظر بگیرید.
+ماتریس همبستگی متغیرهای مختلف را به دست آورده و سپس رسم نمایید. علاوه بر این نمودار پراکنش متغیرهای انتخاب شده را همزمان نسبت به هم رسم نمایید.
+</p>
+
+```{r}
+selected_fields = c('ResidentStatus', 'EducationReportingFlag', 'Sex', 'Age', 'PlaceOfDeathAndDecedentsStatus', 'MaritalStatus', 'MethodOfDisposition', 'Autopsy', 'ActivityCode', 'PlaceOfInjury', 'Race', 'suicide')
+selecdted_data = death[, selected_fields]
+selecdted_data[, 'MaritalStatus'] = as.numeric(selecdted_data[, 'MaritalStatus'])
+selecdted_data[, 'Sex'] = as.numeric(selecdted_data[, 'Sex'])
+selecdted_data[, 'Autopsy'] = as.numeric(selecdted_data[, 'Autopsy'])
+selecdted_data[, 'MethodOfDisposition'] = as.numeric(selecdted_data[, 'MethodOfDisposition'])
+selecdted_data %>% select_if(is.numeric) -> cor_data
+cor_data %>% cor() %>% round(2) -> cor_mat
+cor_mat
+corrplot(cor_mat, type="upper", order="hclust", sig.level = 0.01, insig ="blank")
+```
+
+
+
+***
+
+<p dir="RTL">
+۲. اثر هر یک از متغیرهای جنسیت، نژاد،آموزش، سن و نحوه تدفین را بر مرگ یا خودکشی ارزیابی کنید.
+</p>
+
+
+```{r}
+cor.test(selecdted_data$suicide, selecdted_data$Sex)
+cor.test(selecdted_data$suicide, selecdted_data$Race)
+cor.test(selecdted_data$suicide, selecdted_data$EducationReportingFlag)
+cor.test(selecdted_data$suicide, selecdted_data$Age)
+cor.test(selecdted_data$suicide, selecdted_data$MethodOfDisposition)
+```
+
+
+***
+
+<p dir="RTL">
+۳. با استفاده از مدل رگرسیون لاجستیک یک مدل به داده ها برازش دهید و سپس آن را نقص یابی کنید.
+</p>
+
+```{r}
+cor_mat[, c('suicide')] -> suicide_data
+sort(suicide_data %>% abs , decreasing = TRUE)
+logmod2 = glm(suicide ~ Autopsy + PlaceOfInjury + Age + ActivityCode + MaritalStatus, data = death, family = binomial(link = 'logit'))
+summary(logmod2)
+```
+
+
+***
+
+<p dir="RTL">
+۴. با استفاده از سه نمودار خروجی مدل را نسبت به داده واقعی ارزیابی کنید.
+</p>
+
+
+<p dir="RTL">
+در این سوال یک بار مدل را بر اساس همهی داده ها بدست آوردم و  یک بار با حذف دادههای پرت، و نتایج آنها را با هم مقایسه کردم.
+
+برای هر کمیت نمودار اول مربوط به همهی دادهها است و نمودار دوم مربوط به دادههای انتخاب شده.
+
+همانطور که مشاهده میشود مدلی که از دادههای انتخابی بدست میآید بسیار بهتر است.
+</p>
+
+```{r}
+death %>% filter(PlaceOfInjury < 99) %>% filter(ActivityCode < 99) %>% filter(Age < 900)-> data
+mylogit = glm(suicide ~ Autopsy + PlaceOfInjury + Age + ActivityCode + MaritalStatus, data = data, family = "binomial")
+mylogit2 = glm(suicide ~ Autopsy + PlaceOfInjury + Age + ActivityCode + MaritalStatus, data = death, family = "binomial")
+
+data %>% mutate(pred = fitted(mylogit)) -> pred_data
+death %>% mutate(pred = fitted(mylogit2)) -> pred_data2
+```
+```{r}
+ggplot(pred_data2, aes(x = Autopsy,y = pred,col = suicide))+
+  geom_point()
+ggplot(pred_data, aes(x = Autopsy,y = pred,col = suicide))+
+  geom_point()
+```
+
+```{r}
+ggplot(pred_data2, aes(x = PlaceOfInjury,y = pred,col = suicide))+
+  geom_point()
+ggplot(pred_data, aes(x = PlaceOfInjury,y = pred,col = suicide))+
+  geom_point()
+```
+```{r}
+ggplot(pred_data2, aes(x = Age,y = pred,col = suicide))+
+  geom_point()
+ggplot(pred_data, aes(x = Age,y = pred,col = suicide))+
+  geom_point()
+```
+```{r}
+ggplot(pred_data2, aes(x = ActivityCode,y = pred,col = suicide))+
+  geom_point()
+ggplot(pred_data, aes(x = ActivityCode,y = pred,col = suicide))+
+  geom_point()
+```
+```{r}
+ggplot(pred_data2, aes(x = MaritalStatus,y = pred,col = suicide))+
+  geom_point()
+ggplot(pred_data, aes(x = MaritalStatus,y = pred,col = suicide))+
+  geom_point()
+```
+
+
+```{r}
+ggplot( pred_data, aes( pred, color = as.factor(suicide))) + 
+geom_density( size = 1 ) +
+ggtitle( "Predicted Score better data" ) + 
+scale_color_economist( name = "data", labels = c( "negative", "positive" ) )
+
+ggplot( pred_data2, aes( pred, color = as.factor(suicide))) + 
+geom_density( size = 1 ) +
+ggtitle( "Predicted Score original" ) + 
+scale_color_economist( name = "data", labels = c( "negative", "positive" ) )
+```
+
+***
+
+<p dir="RTL">
+۵. ابتدا ۲۰ درصد داده را به صورت تصادفی به عنوان تست در نظر بگیرید. مدل را با استفاده از ۸۰ درصد باقی مانده برازش دهید. با استفاده از پارامتر قطع ۰.۵ نتایج را برای داده تست پیش بینی کنید. سپس کمیت های زیر را محاسبه کنید.
+</p>
+
+* P: positive samples
+* N: negative samples
+* TP: true positive TP (eqv. with hit)
+* TN: true negative (eqv. with correct rejection)
+* FP: false positive (eqv. with false alarm, Type I error)
+* FN: false negative (eqv. with miss, Type II error)
+* Accuracy (ACC) ACC = (TP+TN)/(P+T)
+* False positive rate (FPR): 1- TN/N
+* True positive rate (TPR): TP/P
+
+<p dir="RTL">
+مشابه آنچه در کلاس گفته شد نمایشی از  چهار کمیت 
+TN, TP,FP,FN
+به همراه داده ها رسم نمایید.
+</p>
+
+```{r}
+sample_size = floor(0.8*nrow(death))
+train_index = sample(seq_len(nrow(death)), sample_size, replace = FALSE, prob = NULL)
+train_data = death[train_index,]
+test_data = death[-train_index,]
+trainMod = glm(suicide ~ Autopsy + PlaceOfInjury + Age + ActivityCode + MaritalStatus, data = train_data, family = binomial(link = 'logit'))
+summary(trainMod)
+
+train_data$pred = ifelse(predict(trainMod, train_data, type = 'response') > 0.5, 1, 0)
+test_data$pred  = ifelse(predict(trainMod, test_data, type = 'response') > 0.5, 1, 0)
+
+train_data$prediction = predict(trainMod, train_data, type = 'response')
+test_data$prediction  = predict(trainMod, test_data, type = 'response')
+
+nrow(test_data %>% filter(pred==1)) -> P
+P
+
+nrow(test_data %>% filter(pred==0)) -> N
+N
+
+nrow(test_data %>% filter(pred==suicide & pred==1)) -> TP
+TP
+
+nrow(test_data %>% filter(pred==suicide & pred==0)) -> TN
+TN
+
+nrow(test_data %>% filter(pred!=suicide & pred==1)) -> FP
+FP
+
+nrow(test_data %>% filter(pred!=suicide & pred==0)) -> FN
+FN
+
+
+(TP+TN)/(P+T) -> ACC
+ACC
+
+1 - TN/N -> FPR
+FPR
+
+TP/P -> TPR
+TPR
+
+```
+
+***
+
+<p dir="RTL">
+۶. نمودار صحت مدل (accuracy) را بر حسب مقادیر مختلف قطع برای داده تست رسم نمایید. کدام پارامتر قطع بالاترین صحت را در پیش بینی داراست؟
+</p>
+
+```{r}
+accuracy_info = AccuracyCutoffInfo( train = train_data, test = test_data, 
+                                     predict = "prediction", actual = "suicide" )
+accuracy_info$plot
+
+```
+
+<p dir="RTL">
+همانطور که مشاهده میشود 0.5 بهترین پارامتر قطع است.
+</p>
+
+***
+
+<p dir="RTL">
+۷. نمودار 
+ROC
+ را برای داده های قسمت قبل رسم نمایید. همچنین نقطه مربوط به بهترین پارامتر قطع را مشخص نمایید.
+</p>
+
+```{r}
+cost_fp = 100
+cost_fn = 100
+roc_info = ROCInfo( data = test_data, predict = "prediction", 
+                     actual = "suicide", cost.fp = cost_fp, cost.fn = cost_fn )
+grid.draw(roc_info$plot)
+```
+
+
+***
+
+<p dir="RTL">
+۸. با قرار دادن کمیت 
+nfolds = 5
+و با استفاده از 
+H20
+مدل مساله را بسازید و نتیجه حاصل را ارزیابی کنید.
+</p>
+
+```{r}
+hdata = as.h2o(death)
+chglm = h2o.glm(y = "suicide", x= c('Autopsy', 'PlaceOfInjury', 'Age', 'ActivityCode', 'MaritalStatus'),
+               training_frame = hdata, family="binomial",nfolds = 5)
+chglm
+```
+
+***
+
+<p dir="RTL"> 
+۹. آیا ما میتوانیم سرویسی به قضات ارایه کنیم تا با استفاده از اطلاعات مرگ بتوانند موارد مشکوک به قتل را از خودکشی تفکیک دهند؟
+</p>
+
+<p dir="RTL">
+بله کافیست  مدل بدست آمده را وی آن دادهها فیت کنیم و مقدار پیشبینی شده را بدست آوریم.
+</p>
+
+

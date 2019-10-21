@@ -1,0 +1,256 @@
+---
+title: "Homework 1"
+author: "Yasmin Sarcheshmehpour"
+date: "94109827"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+<h2 dir="RTL">
+ماتریس دوستانه
+</h2>
+
+```{r}
+library('magic')
+magic(4)
+magic(5)
+magic(6)
+```
+
+***
+
+<h2 dir="RTL">
+جایشگت  عجیب
+</h2>
+
+
+```{r}
+library("combinat")
+n = 13
+n1 = 5
+n2 = 5
+n3 = 3
+combs1 = combn(n, n1)
+for (i in 1:ncol(combs1)){
+  prms1 = permn(combs1[, i])
+  for (perm1 in prms1){
+    a1 = perm1[1]
+    a2 = perm1[2]
+    a3 = perm1[3]
+    a4 = perm1[4]
+    a5 = perm1[5]
+    x1 = a1 / (a2+a3)
+    x2 = (a2+a3) / (a3+a4+a5)
+    if ((x1 >= 1) || (x2 >= 1) || (x1 != x2))
+      next
+    diff1 = setdiff(combn(n, n), combs1[, i])
+    combs2 = combn(diff1, n2)
+    for (j in 1:ncol(combs2)){
+      prms2 = permn(combs2[, j])
+      for (perm2 in prms2){
+        a6 = perm2[1]
+        a7 = perm2[2]
+        a8 = perm2[3]
+        a9 = perm2[4]
+        a10 = perm2[5]
+        y1 = a6 / (a6+a7)
+        y2 = (a6+a7) / (a7+a8+a9)
+        y3 = (a7+a8+a9) / (a5+a9+a10)
+        if ((y1 >= 1) || (y2 >= 1) || (y3 >= 1))
+          next
+        if ((y1 != y2) || (y1 != y3) || (y2 != y3))
+          next
+        diff2 = setdiff(diff1, combs2[, j])
+        prms3 = permn(diff2)
+        for (perm3 in prms3){
+          a11 = perm3[1]
+          a12 = perm3[2]
+          a13 = perm3[3]
+          z1 = (a11+a12) / (a12+a13)
+          z2 = (a12+a13) / (a13+a10)
+          if ((z1 >= 1) || (z1 >= 1))
+            next
+          if (z1 != z2)
+            next
+          print (c(perm1, perm2, perm3))
+        }
+      }
+    }
+  }
+}
+```
+***
+
+<h2 dir="RTL">
+مچ گیری
+</h2>
+
+<p dir="RTL">
+میزگردی شامل ۱۶ فرد دروغگو و راستگو تشکیل شده است. هر کسی ادعا میکند دو فرد کنار دستی او دروغگو هستند. چند نفر دروغگو در جمع وجود دارد؟
+</p>
+
+```{r}
+n = 16
+pow = 2**n - 1
+library("combinat")
+check = F
+for(j in 0:pow ){
+      flag = T
+      bin = as.integer(intToBits(j))[0:n]
+      for (k in 1:n){
+        man = k
+        nextt = man+1
+        if (nextt==n+1)
+            nextt = n
+        prevv = man-1
+        if (prevv == 0)
+            prevv = n
+        if (bin[man] == 1){
+          if (bin[nextt] == 1 || bin[prevv] == 1){
+              flag = F
+              break
+          }
+        }
+        
+        else{
+          if (bin[nextt] == 0 && bin[prevv] == 0){
+              flag = F
+              break
+          }
+        }
+
+      }
+      if (flag){
+          cnt = 0
+          for (item in bin)
+            if (item == 0)
+              cnt = cnt + 1
+            print (cnt)
+            print (bin)
+            break
+      }
+}
+```
+
+<p dir="RTL">
+میزگرد دیگری شامل ۱۲ نفر فرد راستگو و دروغگو تشکیل شده به طوری که هر فرد ادعا میکند از میان دو نفر کنار دستی یک نفر راستگو و یک نفر دروغگو هستند. چند نفر دروغگو در جمع وجود دارد؟
+</p>
+
+
+```{r}
+n = 12
+pow = 2**n - 1
+for(j in 0:pow ){
+      flag = T
+      bin = as.integer(intToBits(j))[0:n]
+      for (k in 1:n){
+        
+        man = k
+        nextt = man+1
+        if (nextt==n+1)
+            nextt = n
+        prevv = man-1
+        if (prevv == 0)
+            prevv = n
+        
+        else{
+          if (bin[nextt] == 0 &&  bin[prevv] == 1){
+              flag = F
+              break
+          }
+          if (bin[nextt] == 1 &&  bin[prevv] == 0){
+              flag = F
+              break
+          }
+        }
+      }
+      
+      if (flag){
+          cnt = 0
+          for (item in bin)
+            if (item == 0)
+              cnt = cnt + 1
+            print (cnt)
+            print (bin)
+            break
+      }
+      
+}
+```
+
+
+<p dir="RTL">
+این دفعه میزگردی هشت نفره تشکیل شده به گونه ایی که چهار نفر ادعا میکنند از از میان دو نفر کنار دستی یکی دروغگو و دیگری راستگوست و چهار نفر دیگر اعلام میکنند که هر دو فرد کنار دستی آنها دروغگو هستند. چند نفر دروغگو در میان جمع است؟
+</p>
+
+
+
+```{r}
+n = 8
+m = 4
+pow = 2**n - 1
+library("combinat")
+combs = combn(n, m)
+check = F
+for(i in 1:ncol(combs)) {
+  for(j in 0:pow ){
+        flag = T
+        bin = as.integer(intToBits(j))[0:n]
+        for (k in 1:n){
+          man = k
+          nextt = man+1
+          if (nextt==n+1)
+              nextt = n
+          prevv = man-1
+          if (prevv == 0)
+              prevv = n
+          if (k %in% combs[, i]) {
+              if (bin[man] == 1){
+                if (bin[nextt] == 1 || bin[prevv] == 1){
+                    flag = F
+                    break
+                }
+              }
+              
+              else{
+                if (bin[nextt] == 0 && bin[prevv] == 0){
+                    flag = F
+                    break
+                }
+              }
+          }
+          else {
+              if (bin[man] == 1){
+                if (bin[nextt] == 1 && bin[prevv] == 1){
+                    flag = F
+                    break
+                }
+                if (bin[nextt] == 0 && bin[prevv] == 0){
+                    flag = F
+                    break
+                }
+              }
+              else{
+                if (bin[nextt] || bin[prevv]){
+                    flag = F
+                    break
+                }
+              }
+          }
+        }
+        
+        if (flag){
+          cnt = 0
+          for (item in bin)
+            if (item == 0)
+              cnt = cnt + 1
+            print (cnt)
+          print (bin)
+          print ("---------------------")
+        }
+  }
+}
+```

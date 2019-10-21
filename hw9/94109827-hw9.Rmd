@@ -1,0 +1,304 @@
+---
+title: "Tenth Week: Principal Component Analysis and Factor Analysis"
+subtitle: "PCA Stock, image, ..."
+author: "Yasmin SarcheshmehPour 94109827"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+<div align="center">
+<img  src="images/stock.jpg"  align = 'center'>
+</div>
+
+> <p dir="RTL"> 
+با استفاده از داده های OHLCV شرکت های تشکیل دهنده شاخص s&p500 و همچنین داده مربوط به شاخص های اقتصادی به سوالات زیر پاسخ دهید.
+</p>
+
+
+```{r}
+library(readr)
+library(magrittr)
+library(stringr)
+library(stringi)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(highcharter)
+
+constituents = read.csv("class_data/constituents.csv")
+indexes = read.csv('class_data/indexes.csv')
+stock_data = data.frame()
+
+for (comp_file in list.files('class_data/stock_dfs/')){
+  path <- paste0("class_data/stock_dfs/", comp_file)
+  comp_data = read.csv(path)
+  str_remove(comp_file ,'.csv') -> comp_name
+  comp_data %>% mutate(Symbol=comp_name) -> comp_data
+  stock_data = rbind(stock_data, comp_data)
+}
+stock_data %>% merge(constituents) -> stock_data
+```
+
+***
+
+<p dir="RTL">
+۱. چه شرکتی رکورددار کسب بیشترین سود در بازه یکساله، دو ساله و پنج ساله می باشد؟ این سوال را برای بخش های مختلف مورد مطالعه قرار دهید و رکورددار را معرفی کنید. (برای این کار به ستون sector داده constituents مراجعه کنید.) برای هر دو قسمت نمودار سود ده شرکت و یا بخش برتر را رسم نمایید.
+</p>
+
+
+```{r}
+
+
+get_data = function(tbl, cnt) {
+tbl %>% select(Name, Date, Open, Sector) %>% 
+  mutate(Date1 = ymd(Date) + years(cnt)) -> last_year
+tbl %>% select(Name, Date, Close) -> extra_data
+merge(last_year, extra_data, by.x=c('Name', 'Date1'), by.y=c('Name', 'Date')) %>% 
+  mutate(year = format(as.Date(Date, format="%Y-%m-%d"),"%Y")) %>% 
+  mutate(profit=Close-Open) %>% select(Name, Sector, year, profit) %>% arrange(-profit)-> last_year
+  last_year %>% group_by(Sector, year) %>%  summarise(sprofit=sum(profit)/n()) -> sector_data
+  sector_data %>% arrange(-sprofit) %>% head(10) -> sector_data
+  head(last_year, 10) -> last_year
+  return (list('last_year'=last_year, 'sector_data'=sector_data))
+}
+
+tbl = stock_data %>% filter(stri_endswith_fixed(Date, '01-03'))
+res = get_data(tbl, 1)
+res$last_year
+res$last_year %>% hchart("column",hcaes(x = Name, y = profit, group = year))
+res$sector_data
+res$sector_data %>% hchart("column",hcaes(x = Sector, y = sprofit, group = year))
+
+res = get_data(tbl, 2)
+res$last_year
+res$last_year %>% hchart("column",hcaes(x = Name, y = profit, group = year))
+res$sector_data
+res$sector_data %>% hchart("column",hcaes(x = Sector, y = sprofit, group = year))
+
+
+res = get_data(tbl, 5)
+res$last_year
+res$last_year %>% hchart("column",hcaes(x = Name, y = profit, group = year))
+res$sector_data
+res$sector_data %>% hchart("column",hcaes(x = Sector, y = sprofit, group = year))
+
+```
+
+***
+
+<p dir="RTL">
+۲. یک اعتقاد خرافی می گوید خرید سهام در روز سیزدهم ماه زیان آور است. این گزاره را مورد ارزیابی قرار دهید.
+</p>
+
+```{r}
+stock_data %>% filter(stri_endswith_fixed(Date, '13')) %>% 
+  mutate(profit=Close-Open) %>% 
+  select(Date, profit, Symbol) -> thirteen
+t.test(thirteen$profit, mu=0, alternative="greater")
+```
+
+<p dir="RTL">
+با تی-تست برسی میکنیم که آیا روز ۱۳ سود آور است یا خیر.
+
+فرض صفر: سود برابر با صفر است
+
+فرض آلترناتیو: سود بیشتر از صفر است.
+
+چون پی-ولیو بسیار کوچک است لذا فرض صفر رد میشود و این باور اشتباه است.
+</p>
+
+
+***
+
+<p dir="RTL">
+۳. رکورد بیشترین گردش مالی در تاریخ بورس برای چه روزی بوده است و چرا!!!
+</p>
+
+```{r}
+stock_data %>% mutate(turnover=Volume*((Close+Open)/2)) %>% group_by(Date) %>% 
+  summarise(score=sum(turnover)) %>% arrange(-score) -> turnover_data
+head(turnover_data)
+```
+
+***
+
+<p dir="RTL">
+۴. شاخص AAPL که نماد شرکت اپل است را در نظر بگیرید. با استفاده از رگرسیون خطی یک پیش کننده قیمت شروع (open price) بر اساس k روز قبل بسازید. بهترین انتخاب برای k چه مقداری است؟ دقت پیش بینی شما چقدر است؟
+</p>
+
+```{r}
+get_vectors = function(prices, k) {
+  vectors_list = data.frame(matrix(ncol = k+1, nrow = 0))
+  for (i in 1:(length(prices)-k-1)){
+    old_prices = prices[i:(i+k-1)]
+    vectors_list = rbind(vectors_list, c(prices[i+k], old_prices))
+  }
+  colnames(vectors_list) = c('price', 1:k)
+  return(vectors_list)
+}
+
+
+stock_data %>% filter(Symbol=='AAPL') %>% arrange(Date) -> apple_data
+prices = apple_data$Open
+lm_data = data.frame(matrix(ncol = 2, nrow = 0))
+for (k in  seq(1, 30, by = 3)){
+  price_data = get_vectors(prices, k)
+  model = lm(price~., price_data)
+  price_data %>% mutate(pred = predict(model, price_data, type = "response")) %>% 
+    mutate(err=(pred-price)^2) %>% summarise(rmse=sqrt(sum(err)/n())) -> predict_data
+  lm_data = rbind(lm_data, c(k, predict_data$rmse))
+}
+colnames(lm_data) = c('k', 'rmse')
+lm_data %>% arrange(rmse) -> lm_data
+lm_data
+```
+
+
+<p dir="RTL">
+همانطور که مشاهده میشود بهترین تعداد روز ۱۰ میباشد.
+</p>
+
+
+***
+
+<p dir="RTL">
+۵. بر روی داده های قیمت شروع شرکت ها الگوریتم pca را اعمال کنید. نمودار تجمعی درصد واریانس بیان شده در مولفه ها را رسم کنید. سه مولفه اول چند درصد از واریانس را تبیین می کند؟
+</p>
+
+```{r}
+library('reshape2')
+stock_data %>% select(Symbol, Date, Open) -> x1
+x2 <- melt(x1, c("Symbol", "Date"), "Open")
+open_data = dcast(x2, Symbol ~ Date)
+open_data[is.na(open_data)] = 0
+open_data$Symbol <- NULL
+pca5 = prcomp(open_data,  center=T, scale.=T)
+eigv = round(pca5$sdev^2/sum(pca5$sdev^2)*100, 2)
+eigv %>% head(3) %>% sum()
+eigv = data.frame(c(1:length(eigv)),eigv)
+names(eigv) = c('PCs','Variance')
+PCA = pca5$sdev^2
+names(PCA) = paste0('PC', eigv$PCs)
+x = qcc::pareto.chart(PCA)
+```
+
+***
+
+<p dir="RTL">
+۶. برای هر نماد اطلاعات بخش مربوطه را از داده constituents استخراج نمایید. برای هر بخش میانگین روزانه قیمت شروع شرکت های آن را محاسبه کنید. سپس با استفاده از میانگین به دست آمده  داده ایی با چند ستون که هر ستون یک بخش و هر سطر یک روز هست بسازید. داده مربوط را با داده شاخص های اقتصادی ادغام کنید. بر روی این داده pca بزنید و نمودار biplot آن را تفسیر کنید.
+</p>
+
+
+```{r}
+stock_data %>% group_by(Sector, Date) %>% summarise(score=mean(Open)) -> sector_data
+x2 <- melt(sector_data, c("Sector", "Date"), "score")
+sector_data = dcast(x2, Sector ~ Date)
+sector_data[is.na(sector_data)] = 0
+sector_data$Sector <- NULL
+pca = prcomp(sector_data,  center=T, scale.=T)
+biplot(pca,cex=0.5)
+```
+
+
+***
+
+<p dir="RTL">
+۷. روی همه اطلاعات (OHLCV) سهام اپل الگوریتم PCA را اعمال کنید. سپس از مولفه اول برای پیش بینی قیمت شروع سهام در روز آینده استفاده کنید. به سوالات سوال ۴ پاسخ دهید. آیا استفاده از مولفه اول نتیجه بهتری نسبت به داده open price برای پیش بینی قیمت دارد؟
+</p>
+
+
+```{r}
+stock_data %>% filter(Symbol=='AAPL') %>% arrange(Date) %>% mutate(origin=lead(Open)) %>% 
+  select(Open, High, Low, Close, Volume, Adj.Close, origin) %>% filter(!is.na(origin)) -> apple_data
+pca = prcomp(apple_data,  center=T, scale.=T)
+mydata <- data.frame(apple_data, pca$x)
+mod <- lm(origin ~ PC1, data = mydata)
+mydata %>% mutate(pred = predict(mod, mydata, type = "response")) %>% filter(!is.na(pred)) %>% 
+    mutate(err=(pred-origin)^2) %>% summarise(rmse=sqrt(sum(err)/n())) -> predict_data
+predict_data
+```
+
+<p dir="RTL">
+با توجه به اینکه خطا در این حالت بیشتر از سوال ۴ است لذا این مدل بدتر است.
+</p>
+
+
+***
+
+<p dir="RTL">
+۸. نمودار سود نسبی شاخص s&p500 را رسم کنید. آیا توزیع سود نرمال است؟(از داده indexes استفاده کنید.)
+با استفاده از ده مولفه اول سوال پنج آیا می توانید سود و ضرر شاخص s&p500 را برای روز آينده پیش بینی کنید؟ از یک مدل رگرسیون لاجستیک استفاده کنید. درصد خطای پیش بینی را به دست آورید.
+</p>
+
+
+```{r}
+ggplot(indexes) + geom_histogram(aes(x = SP500))
+t.test(indexes$SP500, mu=0)
+```
+
+<p dir="RTL">
+همانطور که مشاهده میشود هیستوگرام دادهها را رسم کرده و مشاهده میشود که با توزیع نرمال خیلی فاصله دارد.
+
+همچنین این موضوع را با ازمون فرض نیز تست کردیم و جواب یکسان گرفتیم.
+</p>
+
+***
+
+<p dir="RTL"> 
+۹. عکسی که در ابتدای متن آمده را در نظر بگیرید. با استفاده از pca عکس را فشرده کنید. سپس نمودار حجم عکس فشرده بر حسب تعداد مولفه اصلی را  رسم کنید. بهترین انتخاب برای انتخاب تعداد مولفه ها در جهت فشرده سازی چه عددی است؟
+</p>
+
+
+```{r}
+library("EBImage")
+pic = flip(readImage("images/stock.jpg"))
+red.weigth   = .2989; green.weigth = .587; blue.weigth  = 0.114
+img = red.weigth * imageData(pic)[,,1] +
+  green.weigth * imageData(pic)[,,2] + blue.weigth  * imageData(pic)[,,3]
+image(img, col = grey(seq(0, 1, length = 256)))
+
+pca.img = prcomp(img, scale=TRUE)
+# Let's plot the cumulative variance of all 349 components
+plot(summary(pca.img)$importance[3,], type="l",
+     ylab="%variance explained", xlab="nth component (decreasing order)")
+abline(h=0.99,col="red");abline(v = 110,col="red",lty=3)
+chosen.components = 1:110
+feature.vector = pca.img$rotation[,chosen.components]
+compact.data = t(feature.vector) %*% t(img)
+dim(compact.data)
+approx.img = t(feature.vector %*% compact.data) 
+dim(approx.img)
+image(approx.img, col = grey(seq(0, 1, length = 256)))
+```
+
+
+<p dir="RTL"> 
+با توجه به نمودار بهترین عدد تقریبا برابر با ۱۱۰ میباشد.
+</p>
+
+
+***
+
+<p dir="RTL"> 
+۱. برسی کنیم که أخر سال و اول سال بازار رشد مثبت دارد یا منفی
+
+۲. با توجه به سال مالی شرکتها برسی کنیم که روند رشد شرکتها در ابتدای سال مالیشان چگونه است؟ برای انتهای سال مالی نیز برسی کنیم.
+
+۳. با توجه به قیمت سهامها آنها را دسته بندی کنیم و رفتارهای مشترک هر دسته را پیدا کنیم.
+
+۴. برای شرکتها با توجه به قیمت سهام و سودی که در انتهای سال مالی در مجمع عمومی پخش میکنند بررسی کنیم که چه ارتباطی با رشد سهام شرکت پس از مجمع دارد؟
+
+۵. تاثیر بسته بودن یک نماد را در قیمت آن نماد برسی کنیم.
+
+</p>
+
+
+
+<p dir="RTL"> 
+یست.)
+</p>
+
+

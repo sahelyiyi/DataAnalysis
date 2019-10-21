@@ -1,0 +1,268 @@
+---
+title: "second week: Introduction to R and Rstudio"
+subtitle: "Mobile Data"
+author: "Yasmin Sarcheshmehpour  94109827"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+<h1 dir="RTL"> 
+تمرین سری دوم: تلفن همراه شناسی!
+</h1>
+
+***
+
+
+```{r}
+library(readr)
+library(ggplot2)
+library(magrittr)
+library(dplyr)
+mobile = read_csv("mobile_data.csv")
+```
+
+***
+<p dir="RTL">
+۱. کدام شرکت بیشترین تعداد گوشی را تولید کرده است؟
+نمودار ستونی ۲۰ شرکت برتر بر حسب تعداد گوشی تولید کرده را رسم کنید.
+</p>
+
+```{r}
+
+mobile %>% group_by(company) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>% head(20) -> stat
+
+ggplot(data=stat, aes(x=reorder(company, -count), y=count)) +
+  geom_bar(stat="identity") + 
+  guides(fill=FALSE) +
+  xlab("company") + ylab("count") +
+  ggtitle("top 20 companies")
+```
+
+
+***
+
+<p dir="RTL">
+۲. نمودار زمانی طول عرض  ضخامت و کیفیت دوربین گوشی ها را بکشید
+ و به نمودار هر یک مدل خطی اضافه کنید.
+</p>
+
+```{r}
+mobile %>%
+  filter(!is.na(year)) %>% group_by(year) %>% 
+  select(dim_length) %>% filter(!is.na(dim_length)) -> stat
+
+ggplot(stat, aes(x=stat$year, y=stat$dim_length)) + 
+  geom_point() + 
+  xlab("year") + ylab("lenght") + ggtitle("lenght graph") +
+  geom_smooth(method='lm',formula=y~x)
+
+mobile %>%
+  filter(!is.na(year)) %>% group_by(year) %>% 
+  select(dim_breadth) %>% filter(!is.na(dim_breadth)) -> stat
+
+ggplot(stat, aes(x=stat$year, y=stat$dim_breadth)) + 
+  geom_point() + 
+  xlab("year") + ylab("breadth") + ggtitle("breadth graph") +
+  geom_smooth(method='lm',formula=y~x)
+
+mobile %>%
+  filter(!is.na(year)) %>% group_by(year) %>% 
+  select(dim_thickness) %>% filter(!is.na(dim_thickness)) -> stat
+
+ggplot(stat, aes(x=stat$year, y=stat$dim_thickness)) + 
+  geom_point() + 
+  xlab("year") + ylab("thickness") + ggtitle("thickness graph") +
+  geom_smooth(method='lm',formula=y~x)
+
+
+mobile %>%
+  filter(!is.na(year)) %>% group_by(year) %>% 
+  select(cam_px) %>% filter(!is.na(cam_px)) -> stat
+
+ggplot(stat, aes(x=stat$year, y=stat$cam_px)) + 
+  geom_point() + 
+  xlab("year") + ylab("cam_px") + ggtitle("cam_px graph") +
+  geom_smooth(method='lm',formula=y~x)
+```
+
+
+***
+
+<p dir="RTL">
+۳. نمودار ستونی متوسط قیمت گوشی بر حسب تعداد سیم کارت و دسترسی به 
+LTE
+را رسم نمایید.
+</p>
+
+
+```{r}
+mobile %>%
+  group_by(sim_no, LTE) %>% summarise(average = mean(price, na.rm=TRUE)) -> stat
+
+ggplot(stat, aes(fill=LTE, y=average, x=sim_no)) + 
+  geom_bar(position="dodge", stat="identity") + xlab("sim number") + ylab("mean price")
+
+```
+
+***
+
+<p dir="RTL">
+۴. نمودار جعبه ایی ضحامت گوشی هایی که در سال ۲۰۱۷ معرفی شده اند را برحسب اینکه کمیت جک هدفون رسم نمایید
+</p>
+
+```{r}
+mobile %>%
+  filter(year==2017) %>% filter(!is.na(dim_thickness)) %>% 
+  select(dim_thickness, audio_jack) -> stat
+
+ggplot(stat, aes(x=audio_jack, y=dim_thickness)) + geom_boxplot()
+
+```
+
+
+***
+
+<p dir="RTL">
+۵. مفهوم 
+ppi 
+را در گوشی های موبایل محاسبه و هیستوگرام آن را رسم نمایید.
+همچنین نمودار سالانه متوسط این کمیت را بکشید.
+کدام گوشی بیشترین
+ppi
+را دارد؟
+</p>
+
+
+
+```{r}
+mobile %>% 
+  filter(!is.na(px_row)) %>% filter(!is.na(px_col)) %>%filter(!is.na(display_size)) %>% filter(!is.na(year)) %>% 
+  mutate(ppi=sqrt(px_row*px_row + px_col*px_col) / display_size) %>% 
+  select(year, device, ppi) -> stat
+
+hist(stat$ppi,100, main = "Histogram of mobiles ppi", xlab = 'ppi')
+
+stat %>% group_by(year) %>% summarise(score=mean(ppi)) -> stat1
+ggplot(stat1, aes(x=year, y=score)) + geom_bar(stat="identity")
+
+max_device_ppi = head(sort(stat$ppi, decreasing = TRUE), 1) 
+stat %>% filter(ppi==max_device_ppi) %>% select(device)
+```
+
+***
+
+<p dir="RTL">
+۶. در گذشته به بعضی از مدل های گوشی نوکیا 
+**گوشکوب**
+گفته می شد. سعی کنید برای این مفهوم کمیتی مناسب تعریف کنید .
+ ده گوشکوب برتر را پیدا کرده و نمودار گوشکوبیت آن را رسم نمایید.
+</p>
+
+
+```{r}
+#sangin, arzoon, koloft
+max_price = head(sort(mobile$price, decreasing = TRUE), 1) + 1
+mobile %>%
+  filter(!is.na(dim_thickness)) %>% filter(!is.na(weight)) %>% filter(!is.na(price)) %>% 
+  mutate(score=dim_thickness*weight*((max_price-price)/max_price)) %>% select(device, score, company) %>% 
+  arrange(desc(score)) %>% head(20) -> stat
+stat
+ggplot(stat, aes(x=reorder(device, -score), y=score)) + geom_bar(stat="identity") + xlab("device") + ylab("gooshkoob score") +
+  ggtitle("top 20 gooshkoob devices")
+
+```
+
+***
+
+<p dir="RTL">
+۷. آیا تلفن همراهی وجود دارد که در آب غرق نشود؟
+اگر جواب بله هست تمام گوشی های که این خاصیت را دارند بیابید.
+با کشیدن یک نمودار به این سوال پاسخ دهید.
+</p>
+
+
+```{r}
+
+mobile %>%
+  filter(!is.na(dim_thickness)) %>% filter(!is.na(dim_length)) %>% 
+  filter(!is.na(dim_breadth)) %>% filter(!is.na(weight)) %>% 
+  mutate(chegali=weight/(dim_length*dim_breadth*dim_thickness*0.001)) %>% 
+  filter(chegali < 1) -> stat
+stat %>% select(device)
+
+stat %>% group_by(company) %>% summarise(score=n()) %>% 
+arrange(score) %>% head(10) -> stat1
+ggplot(stat1, aes(x=reorder(company, score), y=score)) + geom_bar(stat="identity") + xlab("company") + ylab("count") +
+  ggtitle("top 10 brands")
+```
+
+***
+
+<p dir="RTL">
+۸. نمودار پراکنش حجم ذخیره سازی باطری و وزن را رسم نمایید.
+میزان همبستگی بین این دو کمیت را محاسبه کنید.
+</p>
+
+
+
+```{r}
+mobile %>% 
+  filter(!is.na(weight)) %>% filter(!is.na(battery_mah)) %>% 
+  select(weight, battery_mah) -> stat
+
+ggplot(stat, aes(x=weight, y=battery_mah)) + geom_point() + xlab("weight") + ylab("battery")
+cor(stat$weight, stat$battery_mah)
+```
+
+***
+
+<p dir="RTL">
+۹. قیمت پرچمداران یک برند خاص مثلا سامسونگ را بیابید و نمودار قیمت زمان و نام مدل را رسم نمایید.
+</p>
+
+
+```{r}
+mobile %>% 
+  filter(company=='Samsung') %>% 
+  filter(!is.na(year)) %>% filter(!is.na(price)) %>% 
+  select(device, contains("Galaxy"), year, price) %>% 
+  arrange (desc(price)) %>%  head(10) -> stat
+stat
+ggplot(stat, aes(x=year, y=price)) + 
+  geom_point() + 
+  geom_text(aes(label=device), size=3,color='red') + 
+  xlab("year") + ylab("device price")
+```
+
+***
+
+<p dir="RTL">
+۱۰. سه نمودار جالب رسم کنید و توضیح دهید چرا از نظر شما جالب است؟
+</p>
+
+
+```{r}
+#geroon tarin gooshia
+mobile %>% 
+  filter(!is.na(price)) %>% select(price, device) %>% arrange(-price) %>% head(10) -> stat
+ggplot(stat, aes(x=reorder(device, -price), y=price)) + geom_bar(stat="identity") + xlab("device name") + ylab("max prices")
+
+
+#geroon tarin brand ha
+mobile %>% 
+  filter(!is.na(price)) %>% 
+  group_by(company) %>% summarise(score=mean(price)) %>% arrange(-score) %>% head(10) -> stat
+ggplot(stat, aes(x=reorder(company, -score), y=score)) + geom_bar(stat="identity") + xlab("company name") + ylab("max prices")
+
+
+#sabok tarin gooshi ke lte darad
+mobile %>% 
+  filter(!is.na(weight)) %>% filter(!is.na(weight)) %>%
+  filter(LTE=='Yes')%>% arrange(weight) %>% head(10) -> stat
+ggplot(stat, aes(x=reorder(device, weight), y=weight)) + geom_bar(stat="identity") + xlab("device name") + ylab("weight")
+
+```

@@ -1,0 +1,261 @@
+---
+title: "Create Map"
+subtitle: "Earthquake Analysis"
+author: "Yasmin Sarcheshmehpour 94109827"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+<div align="center">
+<img  src="images/eqs003-001-2.png"  align = 'center'>
+</div>
+
+> <p dir="RTL"> 
+با استفاده از داده های زلزله ها در ایران و جهان به سوالات زیر پاسخ دهید.
+</p>
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,error = F,message = F,
+                      warning = F,fig.width = 10,fig.height = 6,fig.align = "center",comment = "")
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(ggmap)
+library(highcharter)
+library(leaflet)
+library(plotly)
+library(neuralnet)
+library(stringr)
+
+```
+
+
+***
+
+<p dir="RTL">
+۱. با استفاده از داده های
+historical_web_data_26112015.rds 
+و استفاده از نمودار پراکنش سه بعدی بسته plotly نمودار طول، عرض و عمق زلزله ها را رسم نمایید. علاوه بر آن بزرگی هر نقطه را برابر بزرگی زمین لرزه قرار دهید.
+</p>
+
+
+```{r}
+sequake = read_rds("week_11/data/historical_web_data_26112015.rds")
+plot_ly(x=sequake$Latitude,y=sequake$Longitude,z=sequake$Depth,type="scatter3d",mode='markers',size=sequake$Magnitude, color=sequake$Magnitude)
+```
+
+
+
+***
+
+<p dir="RTL">
+۲. پویانمایی سونامی های تاریخی را بر حسب شدت بر روی نقشه زمین رسم نمایید.(از داده زلزله های بزرگ استفاده نمایید.)
+</p>
+
+
+```{r}
+disaster = read_delim("week_11/data/disaster.txt", "\t", escape_double = FALSE, trim_ws = TRUE)
+
+disaster %>% filter(YEAR>2000) %>% 
+rename(lat = LATITUDE,lon = LONGITUDE, name = COUNTRY,sequence = YEAR) %>%
+  mutate(z=EQ_PRIMARY/100, color = colorize(FOCAL_DEPTH)) %>% 
+  select(lat, lon, z, color, name, sequence) -> dis 
+
+hcmap() %>% 
+  hc_add_series(data = dis, type = "mapbubble", maxSize = "10")  %>% 
+  hc_plotOptions(series = list(showInLegend = FALSE))
+```
+
+
+
+
+***
+
+<p dir="RTL">
+۳. نمودار چگالی دو بعدی زلزله های تاریخی ایران را رسم کنید.( از داده iran_earthquake.rds و لایه stat_density_2d استفاده نمایید).
+</p>
+
+
+```{r}
+irequake = read_rds("week_11/data/iran_earthquake.rds")
+
+#irmap = get_map("Iran",zoom = 5, color="bw")
+irmap = read_rds("week_11/data/my_map.rds")
+
+ggmap(irmap, extent = "panel", maprange=FALSE) +
+   geom_density2d(data = irequake, aes(x = Long, y = Lat)) +
+   stat_density2d(data = irequake, aes(x = Long, y = Lat, fill = ..level.., alpha = ..level..),
+                  size = 0.01, bins = 16, geom = 'polygon') +
+   scale_fill_gradient(low = "green", high = "red") +
+   scale_alpha(range = c(0.00, 0.25), guide = FALSE) +
+   theme(legend.position = "none", axis.title = element_blank(), text = element_text(size = 12))
+
+```
+
+***
+
+<p dir="RTL">
+۴. احتمال اینکه در ایران در پنج سال آینده زلزله به بزرگی هفت ریشتر رخ دهد را محاسبه کنید. (از احتمال شرطی استفاده کنید.)
+</p>
+
+
+***
+
+<p dir="RTL">
+۵. بر اساس داده های زلزله های بزرگ ابتدا تعداد و متوسط کشته زلزله ها را بر حسب کشور استخراج نمایید. سپس نمودار گرمایی تعداد کشته ها را بر روی کره زمین رسم نمایید.(مانند مثال زیر!)
+</p>
+
+<div align="center">
+<img  src="images/jvector.png"  align = 'center'>
+</div>
+
+
+```{r}
+disaster %>% group_by(COUNTRY) %>% 
+  summarise(mean_deaths = round(mean(TOTAL_DEATHS, na.rm = T)), all_deaths = sum(TOTAL_DEATHS, na.rm = T)) -> death_data
+
+death_data$COUNTRY = str_c(str_sub(death_data$COUNTRY, 1,1), str_to_lower(str_sub(death_data$COUNTRY, 2,-1), locale = "en"))
+
+mapdata = get_data_from_map(download_map_data(url = "custom/world.js"))
+
+hcmap(url = "custom/world.js", data = death_data, value = "mean_deaths",
+      joinBy = c("name", "COUNTRY"), name = "mean death",
+      dataLabels = list(enabled = TRUE, format = '{point.name}'),
+      borderColor = "#FAFAFA", borderWidth = 0.1)
+
+hcmap(url = "custom/world.js", data = death_data, value = "all_deaths",
+      joinBy = c("name", "COUNTRY"), name = "total death",
+      dataLabels = list(enabled = TRUE, format = '{point.name}'),
+      borderColor = "#FAFAFA", borderWidth = 0.1)
+
+
+```
+
+
+***
+
+<p dir="RTL">
+۶. با استفاده از داده لرزه های بزرگ و به وسیله طول، عرض، شدت، عمق مدلی برای پیش بینی تعداد کشته های زلزله بیابید.
+</p>
+
+
+
+```{r}
+data = disaster %>% select(LATITUDE, LONGITUDE, FOCAL_DEPTH, EQ_PRIMARY, DEATHS)
+data = na.omit(data)
+
+sample_size = floor(0.8*nrow(data))
+train_index = sample(seq_len(nrow(data)), sample_size, replace = FALSE, prob = NULL)
+train_data = data[train_index,]
+test_data = data[-train_index,]
+
+trainMod = lm(DEATHS ~ LATITUDE + LONGITUDE + FOCAL_DEPTH + EQ_PRIMARY, data = train_data)
+summary(trainMod)
+
+train_data$pred = predict(trainMod, train_data, type = 'response') 
+head(train_data)
+
+```
+
+***
+
+<p dir="RTL">
+۷. با استفاده از داده worldwide.csv به چند سوال زیر پاسخ دهید. تحقیق کنید آیا می توان از پیش لرزه، زلزله اصلی را پیش بینی کرد؟
+
+
+برای این سوال از مدل داده شده در دیتای استفاده شده استفاده کرده ام.
+
+و به صورت مستقل مدلی فیت نکرده ام.
+</p>
+
+
+```{r}
+wquake = read.csv('week_11/data/worldwide.csv')
+print('number of predicted eqrchquakes / all earthquakes')
+sum(!is.na(wquake$rms)) / length(wquake$rms)
+print('mean rms is')
+mean(wquake$rms, na.rm = TRUE)
+print('min mag is')
+min(wquake$mag, na.rm=TRUE)
+print('max mag is')
+max(wquake$mag, na.rm=TRUE)
+
+```
+
+***
+
+<p dir="RTL">
+۸. گزاره " آیا شدت زلزله به عمق آن بستگی دارد" را تحقیق کنید؟ (طبیعتا از آزمون فرض باید استفاده کنید.)
+
+
+با توجه به پی-ولیوو شدت زلزله با عمق آن اندکی همبستگی دارد.
+</p>
+
+
+```{r}
+
+cor(wquake$mag, wquake$depth)
+
+cor.test(wquake$mag, wquake$depth)
+
+```
+
+***
+
+<p dir="RTL"> 
+۹. میانگین سالانه زلزله ها را بر حسب کشور به دست آورید. آیا میتوان دلیلی در تایید یا رد تئوری هارپ ارائه کرد.
+</p>
+
+```{r}
+wquake$place = as.character(wquake$place)
+
+wquake %>% filter(str_detect(place, ', ')) -> new_wquake
+x = unlist(lapply(strsplit(new_wquake$place, ', '), '[[', 2 ))
+
+new_wquake %>% mutate(country = x, year=substr(time, 1, 4)) -> new_wquake
+
+new_wquake %>% group_by(country, year) %>% summarise(earthquake_cnt=n()) -> mean_earthquakes
+
+head(mean_earthquakes)
+```
+
+***
+
+<p dir="RTL"> 
+۱۰. سه حقیقت جالب در مورد زلزله بیابید.
+</p>
+
+
+
+<p dir="RTL"> 
+استانهای زلزله خیز ایران
+</p>
+
+
+```{r}
+
+# Top 6 Provinces in Iran with most earthquakes.
+sequake %>% group_by(Province) %>% summarise(count = n()) %>% arrange(desc(count))-> result
+head(result)
+```
+
+
+
+
+<p dir="RTL"> 
+کشورهای زلزله خیز دنیا
+</p>
+
+
+```{r}
+# Top 6 countries in the world with most earthquakes.
+disaster %>% group_by(COUNTRY) %>% summarise(count = n()) %>% arrange(desc(count))-> result
+head(result)
+
+
+```

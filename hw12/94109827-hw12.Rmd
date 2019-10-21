@@ -1,0 +1,293 @@
+---
+title: "Association rules"
+subtitle: "Movie recommender systems"
+author: "Yasmin Sarcheshmehpour 94109827"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+<div align="center">
+<img  src="images/rs_cover.jpg"  align = 'center'>
+</div>
+
+> <p dir="RTL"> 
+با استفاده از داده نظرهای فیلم به سوالات زیر پاسخ دهید.
+</p>
+
+
+```{r, echo=FALSE, message=FALSE}
+library(magrittr)
+library(readr)
+library(dplyr)
+library(anytime)
+library(stringr)
+library(highcharter)
+library(corrplot)
+library(wordcloud2)
+library(tidytext)
+library(stringdist)
+library(ggplot2)
+library(arules)
+
+
+#system("sed -i 's/::/~/g' ml-10M100K/movies.dat")
+
+movie_data = read.table('ml-10M100K/movies.dat', sep = "~") %>% as.data.frame()
+colnames(movie_data) = c('movie_id', 'movie_title', 'genres')
+
+movie_data$year = as.numeric(str_sub( str_trim(movie_data$movie_title) ,start = -5,end = -2))
+movie_data$title = str_sub( str_trim(movie_data$movie_title) ,start = 1,end = -8)
+
+all_genres = unique(unlist(str_split(movie_data$genres,"\\|")))
+
+movies = movie_data
+
+for(genre in all_genres){
+  if(genre != ""){
+    movies[str_c("genre_",genre)] = ifelse(( str_detect(movies$genres,genre) | str_detect(movies$genres,"no genres") ) , 1 , 0)
+  }
+}
+
+
+rating_data = read.table('ml-10M100K/ratings.dat', sep = "~") %>% as.data.frame()
+colnames(rating_data) = c('user_id', 'movie_id', 'rating', 'timestamp')
+
+
+merge_data = merge(movies, rating_data, by='movie_id', all.x=TRUE)
+genre_data <- data.frame(year=numeric(),
+                         genre=character(), 
+                         movie_count=numeric(),
+                         mean_rating=numeric(),
+                         user_count=numeric(),
+                         stringsAsFactors=FALSE)
+for (y in c(1919:2004)){
+  merge_data %>% filter(year==y) -> data
+  movies %>% filter(year==y) -> mdata
+  if (nrow(data) == 0 || nrow(mdata) == 0) next
+  for (genre in colnames( movies[,6:24])){
+    genre_year_data = data[which(data[,genre]>0),]
+    genre_year_data <- na.omit(genre_year_data)
+    user_count = nrow(genre_year_data)
+    mean_rating = sum(genre_year_data$rating) / user_count
+    if (is.na(mean_rating)){
+      mean_rating = 0
+    }
+    de<-data.frame(y,genre, sum(mdata[,genre]), mean_rating, user_count)
+    names(de)<-c("year","genre", "movie_count", "mean_rating", "user_count")
+    genre_data = rbind(genre_data, de)
+  }
+}
+
+
+write.csv(genre_data, file = "genre_data.csv")
+
+
+
+rating_data = merge(rating_data, movie_data, by='movie_id', all.x = TRUE)
+
+
+```
+
+***
+
+<p dir="RTL">
+۱. آماره های زیر را بیابید.
+الف. محبوب ترین فیلم کدام است؟
+ب. بیشترین نظرات درباره چه فیلمی داده شده است؟
+پ. منفورترین فیلم کدام است؟
+ت. تعداد فیلم های ساخته شده در هر سال
+ث. در هر سالی مردم به چه ژانری علاقه مند بوده اند.
+</p>
+
+
+```{r}
+
+rating_data %>% group_by(movie_id) %>% summarise(mean_rating=sum(rating)/n(), count=n()) %>% 
+  merge(movie_data) %>% select(movie_id, movie_title, mean_rating, count)-> normalize_data
+
+
+normalize_data %>%  filter(count>=100) %>% arrange(-mean_rating, -count) %>% head() 
+
+normalize_data %>% arrange(-count) %>% head()
+
+normalize_data %>% filter(count>=100) %>% arrange(mean_rating, -count) %>% head()
+
+ggplot(movies,aes(x=year)) + geom_bar() + ggtitle("Number of Movies")
+
+genre_data %>% group_by(year) %>% filter(mean_rating==max(mean_rating)) %>%  select(year, genre, mean_rating)
+
+```
+
+***
+
+<p dir="RTL">
+۲. ژانر فیلم ها را استخراج نمایید.  سپس آماره های زیر را استخراج نمایید.
+الف. نمودار ستونی تعداد فیلم های هر ژانر
+ب. نمودار همبستگی ژانرها
+پ. متوسط امتیاز به هر ژانر
+ت. دوران طلایی فیلم سازی 
+</p>
+
+
+```{r}
+
+genre_data %>% group_by(genre) %>% mutate(all_movie_count=sum(movie_count))  %>% 
+  ggplot(aes(x=genre,y=all_movie_count,fill=genre)) + 
+    geom_bar(stat = "identity") + 
+    coord_flip() + 
+    ggtitle("Genre Distribution") + 
+    theme(legend.position = "none")
+
+
+movies[, 6:24] -> cor_data
+cor_data %>% cor() %>% round(2) -> cor_mat
+corrplot(cor_mat, type="upper", order="hclust", sig.level = 0.01, insig ="blank")
+
+
+genre_data %>% group_by(genre) %>% mutate(year_mean_rating=mean_rating) %>% summarise(mean_rating=sum(year_mean_rating*user_count)/sum(user_count)) %>% 
+  hchart("column",hcaes(x = genre, y = mean_rating))
+
+
+rating_data %>% group_by(year) %>% summarise(mean_rating=mean(rating), var=var(rating), count=n()) %>% mutate(score=mean_rating/var) %>% arrange(-score) %>% head(5)
+
+```
+
+***
+
+<p dir="RTL">
+۳. نمودار ابر لغات را بر حسب کلمات عنوان فیلم ها رسم نمایید.
+</p>
+
+
+```{r}
+
+lower = function(strings) {
+  ans = c()
+  for (string in strings){
+    if (startsWith(string, '(') & endsWith(string, ')')) next
+    normalize_str = str_replace_all(string,"[^a-zA-Z1-9\\s]", "")
+    ans = c(ans, str_to_lower(normalize_str))
+  }
+  return(ans)
+}
+
+split_str_by_space = function(str) {
+  return (unlist(strsplit(str,split=' ')))
+}
+
+
+words = unlist(lapply(as.character(movie_data$movie_title), split_str_by_space)) %>% lower()
+
+head(words)
+
+words_data = words %>%
+ unlist() %>%
+ table() %>%
+ as.data.frame(stringsAsFactors = F)
+ colnames(words_data) = c("word","count")
+ 
+words_data %>% arrange(-count) -> words_data
+
+words_data = words_data %>%
+ filter(!str_to_lower(word) %in% stop_words$word) %>%
+ filter(length(word) > 1) %>% 
+ arrange(desc(count)) %>%
+ mutate(lower = str_to_lower(word))
+ 
+
+wordcloud2(head(words_data, 200), size = 1)
+
+```
+
+
+***
+
+<p dir="RTL">
+۴. با استفاده از قوانین همبستگی یک توصیه گر برای فیلم ها بسازید. شبیه ترین فیلم ها به لیست زیر را پیدا کنید.
+</p>
+
+* Castle in the Sky (1986)
+* Cast Away (2000)
+* No Country for Old Men (2007)
+* Memento (2000)
+
+```{r}
+
+
+rating_data = na.omit(rating_data)
+user_item_matrix <- as(split(rating_data[,'movie_title'], rating_data[, 'user_id']), "transactions")
+
+rule_param = list(
+    supp = 0.001,
+    conf = 0.7,
+    maxlen=2
+)
+
+assoc_rules = apriori(user_item_matrix, parameter = rule_param)
+
+
+cast_away_rules = subset(assoc_rules, subset=(lhs %in% c('Cast Away (2000)') | rhs %in% c('Cast Away (2000)')))
+inspect(sort(cast_away_rules, by = "lift")[1:10])
+
+
+
+Castle_rules = subset(assoc_rules, subset=(lhs %in% c('Castle in the Sky (Tenkû no shiro Rapyuta) (1986)') | rhs %in% c('Castle in the Sky (Tenkû no shiro Rapyuta) (1986)')))
+inspect(sort(Castle_rules, by = "lift")[1:10])
+```
+
+
+
+
+***
+
+<p dir="RTL">
+۵. تمرین سخت: در گیت هاب برای خود اکانت درست کنید. همه تمرین های خود را آنجا بارگذاری کنید! و لینک آن را ارسال نمایید.
+
+
+https://gitlab.com/sahelyiyi/DataAnalysis
+
+</p>
+
+
+
+
+***
+
+<p dir="RTL">
+۶. پنج انتقاد از درس و نحوه تدریس را بیان کنید.
+
+بهتر بود نمرات قبل از ترمیم داده میشدند.
+
+</p>
+
+
+***
+
+<p dir="RTL">
+۷. پنج پیشنهاد برای بهتر شدن درس بیان کنید.
+</p>
+
+
+***
+
+<p dir="RTL">
+۸. سه موضوع آماری جدید برای جایگزینی در سرفصل ها پیشنهاد دهید.
+</p>
+
+***
+
+<p dir="RTL"> 
+۹. سه داده جالب برای کار در کلاس پیشنهاد دهید.
+</p>
+
+***
+
+<p dir="RTL"> 
+۱۰. چهار نکته مهمی که در کلاس یاد گرفتید را بیان کنید.
+
+در کل شهود خیلی خوبی نسبت به کار تحلیل داده به دست آوردم که خیلی برام ارزش داره و ترسی که نسبت به کار با دیتا داشتم از بین رفت.
+</p>
+

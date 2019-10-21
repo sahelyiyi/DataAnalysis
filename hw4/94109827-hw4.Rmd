@@ -1,0 +1,315 @@
+---
+title: "Fourth Week: Hypothesis Testing"
+subtitle: "TIMSS Analysis"
+author: "Yasmin sarcheshmehpour 94109827"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+
+<h1 dir="RTL"> 
+تمرین سری چهارم: چقدر ریاضی بلدیم و چرا؟
+</h1>
+<p dir="RTL">
+در همهی موارد فرض صفر برابر است با:
+دو فیچر گفته شده مستقل از هم هستند و این تفاوت میانگینها تصادفی است
+و فرض ha برابر است با:
+دو فیچر گفته شده مستقل از هم نیستند
+همچنین آلفا برابر با ۰.۰۵ در نظر گرفته شده است و در همهی موارد چون pvalue عدد بسیار کوچکی است فرض صفر رد میشود.
+</p>
+
+
+```{r}
+library(readr)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+bsg = readRDS("/home/sahel/Desktop/tahlil/hw4/bsg.rds")
+bst = readRDS("/home/sahel/Desktop/tahlil/hw4/bst.rds")
+btm = readRDS("/home/sahel/Desktop/tahlil/hw4/btm.rds")
+bcg = readRDS("/home/sahel/Desktop/tahlil/hw4/bcg.rds")
+```
+
+
+***
+
+<p dir="RTL">
+۱. میران رضایت معلمان در پیشرفت تحصیلی دانش آموزان موثر است.
+</p>
+
+
+
+```{r}
+bsg %>% 
+  mutate(score = select(., starts_with("bsmmat")) %>% rowMeans(na.rm = TRUE)) %>% 
+  select(idcntry, idstud, score)  -> std_data
+
+bst %>% select(idtealin, idcntry, idstud) -> std_tch_data
+
+btm %>% group_by(idcntry, idtealin) %>% select(sat=btdgtjs) -> tch_data
+
+data = full_join(std_data, std_tch_data)
+std_tch_sat_data = full_join(data, tch_data)
+std_tch_sat_data %>% filter(!is.na(sat)) %>% filter(!is.na(score)) -> std_tch_sat_data
+aov(score ~ sat, data = std_tch_sat_data) %>% summary.aov()
+std_tch_sat_data %>% group_by(sat) %>% summarise(count=mean(score)) -> summarise_data
+ggplot(summarise_data, aes(x=summarise_data[1], y=summarise_data$count)) + 
+  geom_bar(stat="identity") +
+  guides(fill=FALSE) +
+  xlab("satisfy score") + ylab("mean progress")
+
+```
+
+
+***
+
+<p dir="RTL">
+۲. والدینی که تحصیلات بیشتری دارند دارای فرزندان موفق تری می باشند.
+</p>
+
+
+```{r}
+bsg %>% 
+  mutate(score = select(., starts_with("bsmmat")) %>% rowMeans(na.rm = TRUE)) %>% 
+  filter(!is.na(bsbg07a)) %>% filter(!is.na(bsbg07b)) %>% 
+  mutate(mean_edu=bsbg07a+bsbg07b/2) %>% 
+  select(idcntry, idstud, score, mean_edu) -> std_data
+aov(score ~ mean_edu, data = std_data) %>% summary.aov()
+std_data %>% group_by(mean_edu) %>% summarise(mean_score=mean(score)) -> summarise_data
+ggplot(summarise_data, aes(x=summarise_data[1], y=summarise_data$mean_score)) + 
+  geom_bar(stat="identity") +
+  guides(fill=FALSE) +
+  xlab("mean education of parents") + ylab("mean progress")
+
+```
+
+
+***
+
+<p dir="RTL">
+۳. امکانات رفاهی در خانه موجب پیشرفت تحصیلی می گردد.
+</p>
+
+
+```{r}
+bsg %>% select(idstud, idcntry, starts_with("bsbg06"), starts_with("bsmmat")) -> comf
+comf[comf == 2] <- 0
+comf[comf == 9] <- 0
+comf[is.na(comf)] <- 0
+comf %>% 
+  mutate(score = select(., starts_with("bsmmat")) %>% rowMeans(na.rm = TRUE)) %>% 
+  mutate(mean_comf = select(., starts_with("bsbg06")) %>% rowMeans(na.rm = TRUE)) %>% 
+  select(score, mean_comf, idstud, idcntry) -> comf
+aov(score ~ mean_comf, data = comf) %>% summary.aov()
+comf %>% group_by(mean_comf) %>% summarise(mean_score=mean(score)) -> summarise_data
+ggplot(summarise_data, aes(x=summarise_data[1], y=summarise_data$mean_score)) + 
+  geom_bar(stat="identity") +
+  guides(fill=FALSE) +
+  xlab("mean school comfortable") + ylab("mean progress")
+```
+
+***
+
+<p dir="RTL">
+۴. محیط آرام مدرسه نقش مهمی در پیشرفت تحصیلی دارد.
+</p>
+
+
+```{r}
+bcg %>% 
+  filter(!is.na(bcbg05a)) %>% filter(!is.na(bcbg05b)) %>% 
+  mutate(calm_score = select(., starts_with("bcbg05")) %>% rowMeans()) %>% 
+  select(idcntry, idschool, calm_score) -> school_data
+
+bsg %>% 
+  mutate(score = select(., starts_with("bsmmat")) %>% rowMeans(na.rm = TRUE)) %>% 
+  select(idcntry, idstud, idschool, score)  -> std_data
+
+calm_data = full_join(std_data, school_data)
+aov(score ~ calm_score, data = calm_data) %>% summary.aov()
+calm_data %>% filter(!is.na(calm_score)) %>% 
+  group_by(calm_score) %>% summarise(mean_score=mean(score)) -> summarise_data
+ggplot(summarise_data, aes(x=summarise_data[1], y=summarise_data$mean_score)) + 
+  geom_bar(stat="identity") +
+  guides(fill=FALSE) +
+  xlab("mean school calmness") + ylab("mean progress")
+```
+
+
+***
+
+<p dir="RTL">
+۵. معلمان با تحصیلات  بالاتر یا تجربه بیشتر دانش آموزان موفق تری تربیت می کنند.
+</p>
+
+
+
+```{r}
+
+btm %>% group_by(idcntry, idtealin) %>% select(age=btbg01, degree=btbg04) -> tch_data
+
+bsg %>% 
+  mutate(score = select(., starts_with("bsmmat")) %>% rowMeans(na.rm = TRUE)) %>% 
+  select(idcntry, idstud, score)  -> std_data
+
+bst %>% select(idtealin, idcntry, idstud) -> std_tch_data
+
+std_tch_sat_data = full_join(full_join(std_data, std_tch_data), tch_data)
+std_tch_sat_data %>% filter(!is.na(age)) %>% filter(!is.na(degree)) -> std_tch_sat_data
+
+aov(score ~ age, data = std_tch_sat_data) %>% summary.aov()
+aov(score ~ degree, data = std_tch_sat_data) %>% summary.aov()
+
+std_tch_sat_data %>% group_by(age) %>% summarise(mean_score=round(mean(score))) %>% arrange(-age)-> summarise_data
+ggplot(summarise_data, aes(x=summarise_data[1], y=summarise_data$mean_score)) + 
+  geom_bar(stat="identity") +
+  guides(fill=FALSE) +
+  xlab("teacher work experience") + ylab("mean progress")
+
+std_tch_sat_data %>% group_by(degree) %>% summarise(mean_score=mean(score)) -> summarise_data
+ggplot(summarise_data, aes(x=summarise_data[1], y=summarise_data$mean_score)) + 
+  geom_col() +
+  guides(fill=FALSE) +
+  xlab("teacher education") + ylab("mean progress")
+```
+
+***
+
+<p dir="RTL"> 
+۶. پسران در کاربرد هندسه قوی تر هستند.
+</p>
+
+
+```{r}
+bsg %>% 
+  mutate(score = select(., starts_with("bsmmat")) %>% rowMeans(na.rm = TRUE)) %>% 
+  select(idcntry, idstud, score, itsex )  %>% filter(!is.na(itsex))-> std_data
+t.test(score ~ itsex, data = std_data) 
+
+std_data %>% group_by(itsex) %>% summarise(mean_score=mean(score)) -> summarise_data
+ggplot(summarise_data, aes(x=c('Female', 'male'), y=summarise_data$mean_score)) + 
+  geom_col() +
+  guides(fill=FALSE) +
+  xlab("gender") + ylab("math")
+```
+
+***
+
+<p dir="RTL"> 
+۷. تغذیه دانش آموزان نقش اساسی در یادگیری آنها دارد. 
+</p>
+
+***
+
+<p dir="RTL"> 
+۸. مدارس با امکانات بیشتر دارای عملکرد بهتری می باشند.
+</p>
+
+***
+
+<p dir="RTL"> 
+۹. علت افت تحصیلی عدم مشارکت در کلاس است.
+</p>
+
+
+```{r}
+btm %>% group_by(idcntry, idtealin) %>% select(coll=btbg14d) -> tch_data
+
+bsg %>% 
+  mutate(score = select(., starts_with("bsmmat")) %>% rowMeans(na.rm = TRUE)) %>% 
+  select(idcntry, idstud, score)  -> std_data
+
+bst %>% select(idtealin, idcntry, idstud) -> std_tch_data
+
+std_tch_sat_data = full_join(full_join(std_data, std_tch_data), tch_data)
+std_tch_sat_data %>% filter(!is.na(coll)) -> std_tch_sat_data
+aov(score ~ coll, data = std_tch_sat_data) %>% summary.aov()
+std_tch_sat_data %>% group_by(coll) %>% summarise(mean_score=mean(score)) -> summarise_data
+ggplot(summarise_data, aes(x=summarise_data[1], y=summarise_data$mean_score)) + 
+  geom_col() +
+  xlab("collectivity") + ylab("mean progress")
+```
+
+
+***
+
+<p dir="RTL"> 
+۱۰. دانش آموزان ایرانی در استدلال قوی تر از کاربرد هستند.
+</p>
+
+***
+
+<p dir="RTL">
+سه گزاره جالب کشف کنید و ادعای خود را ثابت نمایید.
+</p>
+
+
+<p dir="RTL">
+سال تحصیلی در میزان پیشرفت دانش آموزان موثر است.
+</p>
+
+```{r}
+# grade dar pishrafte tahsili tasir dashte ya na
+bsg %>% 
+  mutate(score = select(., starts_with("bsmmat")) %>% rowMeans(na.rm = TRUE)) %>% 
+  select(idcntry, idstud, score, idgrade)  -> std_data
+aov(score ~ idgrade, data = std_data) %>% summary.aov()
+std_data %>% group_by(idgrade) %>% summarise(mean_score=mean(score)) -> summarise_data
+summarise_data
+ggplot(summarise_data, aes(x=summarise_data[1], y=summarise_data$mean_score)) + 
+  geom_col() +
+  xlab("grade") + ylab("mean progress")
+```
+
+
+
+
+
+
+
+
+<p dir="RTL">
+اهمیت عملکرد خوب در ریاضی در پیشرفت تحصیلی دانش آموزان موثر است.
+</p>
+
+```{r}
+# IMPORTANT TO DO WELL IN MATH dar pishrafte tahsili tasir dare
+# 1 2 3 4: Agree a lot" "Agree a little" "Disagree a little" "Disagree a lot"
+
+bsg %>% 
+  mutate(score = select(., starts_with("bsmmat")) %>% rowMeans(na.rm = TRUE)) %>% 
+  select(idcntry, idstud, score, imath=bsbm20i)  %>% filter(!is.na(imath)) -> std_data
+aov(score ~ imath, data = std_data) %>% summary.aov()
+std_data %>% group_by(imath) %>% summarise(mean_score=mean(score)) -> summarise_data
+ggplot(summarise_data, aes(x=summarise_data[1], y=summarise_data$mean_score)) + 
+  geom_col() +
+  xlab("IMPORTANT TO DO WELL IN MATH") + ylab("mean progress")
+
+```
+
+
+
+
+
+
+
+<p dir="RTL">
+میزان سخت بودن ریاضی برای دانش آموزان در پیشرفت تحصیلی آنها موثر است.
+</p>
+
+```{r}
+# MATHEMATICS IS MORE DIFFICULT dar pishrafte tahsili tasir dare
+# 1 2 3 4: Agree a lot" "Agree a little" "Disagree a little" "Disagree a lot"
+
+bsg %>% 
+  mutate(score = select(., starts_with("bsmmat")) %>% rowMeans(na.rm = TRUE)) %>% 
+  select(idcntry, idstud, score, dmath=bsbm19b)  %>% filter(!is.na(dmath)) -> std_data
+aov(score ~ dmath, data = std_data) %>% summary.aov()
+std_data %>% group_by(dmath) %>% summarise(mean_score=mean(score)) -> summarise_data
+ggplot(summarise_data, aes(x=summarise_data[1], y=summarise_data$mean_score)) + 
+  geom_col() +
+  xlab("MATHEMATICS IS MORE DIFFICULT") + ylab("mean progress")
+```
+
